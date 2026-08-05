@@ -88,6 +88,60 @@ function initSheets() {
     if (!sheet) {
       sheet = ss.insertSheet(name);
       sheet.appendRow(sheets[name]);
+      if (name === 'Setting') {
+        sheet.appendRow(['admin_pass', 'admin123']);
+        sheet.appendRow(['nama_kbihu', 'KBIHU KI MAGETI']);
+        sheet.appendRow(['tahun', '1448 H / 2027 M']);
+        sheet.appendRow(['alamat', 'Jl. Raya Magetan - Maospati, Magetan, Jawa Timur']);
+        sheet.appendRow(['pimpinan', 'KH. Ahmad Mageti']);
+        sheet.appendRow(['bendahara', 'Hj. Siti Aminah']);
+        sheet.appendRow(['tempat_ttd', 'Magetan']);
+      }
+    }
+  }
+}
+
+function saveData(sheetName, item, keyFields) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  const values = sheet.getDataRange().getValues();
+  
+  // Ambil header resmi
+  let headers = values[0];
+
+  let rowIndex = -1;
+  if (values.length > 1) {
+    for (let i = 1; i < values.length; i++) {
+      let match = keyFields.every(kf => {
+        let colIdx = headers.indexOf(kf);
+        return String(values[i][colIdx]) === String(item[kf]);
+      });
+      if (match) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+  }
+
+  // Pemetaan nilai sesuai nama header kolom di Sheet
+  const rowData = headers.map(h => {
+    return item[h] !== undefined ? item[h] : '';
+  });
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+  return { updated: true };
+}
+  };
+
+  for (let name in sheets) {
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+      sheet.appendRow(sheets[name]);
       
       if (name === 'Setting') {
         sheet.appendRow(['admin_pass', 'admin123']);
