@@ -24,7 +24,7 @@ let DB = {
     Pembayaran: [],
     Jadwal: [],
     Setting: {
-        script_url: 'https://script.google.com/macros/s/AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8/exec',
+        script_url: '',
         admin_pass: 'admin123',
         nama_kbihu: 'KBIHU KI MAGETI',
         tahun: '1448 H / 2027 M',
@@ -209,7 +209,6 @@ function showMainApp() {
     document.getElementById('app-header-title').innerText = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
     document.getElementById('app-header-subtitle').innerText = 'Tahun ' + (DB.Setting.tahun || '1448 H / 2027 M');
 
-    // Penyesuaian UI khusus Jamaah vs Admin
     if (CurrentRole === 'jamaah') {
         document.getElementById('dash-stat-kas-label').innerText = 'TOTAL PEMBAYARAN SAYA';
         document.getElementById('nav-pembayaran-title').innerText = '💳 Riwayat Pembayaran';
@@ -273,10 +272,7 @@ function loadLocalStorage() {
     if (data) {
         try { DB = JSON.parse(data); } catch(e){}
     }
-    if (!DB.Setting.script_url) {
-        DB.Setting.script_url = 'https://script.google.com/macros/s/AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8/exec'; // <-- MASUKKAN URL ANDA JUGA DI SINI
-    }
-    document.getElementById('cfg-script-url').value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8/exec';
+    document.getElementById('cfg-script-url').value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycbyIDO6dzGuQBCVhPvS2BFYMA8v_5fsl-8nWn5kt85QWgWoCkRUW00GZB72LepmB6LdR/exec';
     document.getElementById('cfg-nama-kbihu').value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
     document.getElementById('cfg-tahun').value = DB.Setting.tahun || '1448 H / 2027 M';
     document.getElementById('cfg-alamat').value = DB.Setting.alamat || '';
@@ -345,7 +341,6 @@ function renderDashboard() {
     document.getElementById('dash-stat-jadwal').innerText = `${DB.Jadwal.length} Agenda`;
 
     if (CurrentRole === 'jamaah') {
-        // PERUBAHAN: Menghitung total pembayaran milik Jamaah bersangkutan saja
         let totalBayarJamaah = 0;
         DB.Pembayaran.forEach(p => {
             if (String(p.nik) === String(CurrentUser.nik) && p.jenis === 'Masuk') {
@@ -354,7 +349,6 @@ function renderDashboard() {
         });
         document.getElementById('dash-stat-kas').innerText = 'Rp ' + totalBayarJamaah.toLocaleString('id-ID');
     } else {
-        // Mode Admin: Sisa Kas
         let mas = 0, kel = 0;
         DB.Pembayaran.forEach(p => {
             if (p.jenis === 'Masuk') mas += parseFloat(p.nominal) || 0;
@@ -393,7 +387,7 @@ function renderJamaah() {
     tbody.innerHTML = '';
 
     if (DB.Jamaah.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada data jamaah.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada data jamaah.</td></tr>';
         return;
     }
 
@@ -402,6 +396,7 @@ function renderJamaah() {
         tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
         tr.innerHTML = `
             <td class="p-3 sm:p-4 font-semibold text-slate-700">${j.nik}</td>
+            <td class="p-3 sm:p-4 font-mono text-emerald-700 font-bold">${j.no_porsi || '-'}</td>
             <td class="p-3 sm:p-4 font-medium text-slate-800">${j.nama}</td>
             <td class="p-3 sm:p-4"><span class="px-2 py-1 rounded text-[10px] sm:text-xs font-semibold ${j.jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${j.jk==='L'?'Laki-laki':'Perempuan'}</span></td>
             <td class="p-3 sm:p-4">${j.alamat}</td>
@@ -436,7 +431,10 @@ function renderBerkas() {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 border-b border-slate-100';
         tr.innerHTML = `
-            <td class="p-3 sm:p-4 font-semibold text-slate-800">${j.nama}<br><span class="text-xs text-slate-400 font-normal">NIK: ${j.nik}</span></td>
+            <td class="p-3 sm:p-4 font-semibold text-slate-800">
+                ${j.nama}<br>
+                <span class="text-xs text-slate-400 font-normal">NIK: ${j.nik} | Porsi: ${j.no_porsi || '-'}</span>
+            </td>
             ${renderBerkasStatus(j.nik, 'ktp', b.ktp)}
             ${renderBerkasStatus(j.nik, 'kk', b.kk)}
             ${renderBerkasStatus(j.nik, 'spph', b.spph)}
@@ -570,6 +568,7 @@ async function submitJamaah(e) {
     e.preventDefault();
     const payload = {
         nik: document.getElementById('j-nik').value,
+        no_porsi: document.getElementById('j-porsi').value || '-',
         nama: document.getElementById('j-nama').value,
         jk: document.getElementById('j-jk').value,
         alamat: document.getElementById('j-alamat').value,
@@ -624,7 +623,7 @@ function openModalBayar(kategori) {
         selectJamaah.setAttribute('required', 'required');
         selectJamaah.innerHTML = '<option value="">-- Pilih Jamaah --</option>';
         DB.Jamaah.forEach(j => {
-            selectJamaah.innerHTML += `<option value="${j.nik}">${j.nama} (${j.nik})</option>`;
+            selectJamaah.innerHTML += `<option value="${j.nik}">${j.nama} (Porsi: ${j.no_porsi || '-'})</option>`;
         });
     }
 
@@ -740,6 +739,7 @@ function importJamaahExcel(e) {
                 if (row.nik && row.nama) {
                     const payload = {
                         nik: String(row.nik),
+                        no_porsi: String(row.no_porsi || '-'),
                         nama: String(row.nama),
                         jk: row.jk || 'L',
                         alamat: row.alamat || '-',
