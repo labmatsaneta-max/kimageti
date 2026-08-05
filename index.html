@@ -38,7 +38,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
 
-    <!-- ================= PAGE 1: LOGIN VIEW & SCHEDULE MANASIK (RESPONSIF MOBILE/DESKTOP) ================= -->
+    <!-- ================= PAGE 1: LOGIN VIEW & SCHEDULE MANASIK ================= -->
     <div id="view-login" class="min-h-screen flex items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-emerald-900 via-emerald-800 to-slate-900">
         <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 border border-emerald-700/30 my-auto">
             
@@ -93,7 +93,6 @@
                     </div>
                     <p class="text-xs text-slate-500 mb-4">Agenda kegiatan bimbingan manasik haji & umrah mendatang.</p>
 
-                    <!-- Container Dynamic Public Jadwal -->
                     <div id="public-jadwal-list" class="space-y-3">
                         <div class="text-center text-xs text-slate-400 py-4">Memuat agenda manasik...</div>
                     </div>
@@ -120,7 +119,7 @@
                     </div>
                     <div>
                         <h1 id="app-header-title" class="font-bold text-sm sm:text-base md:text-lg leading-tight">KBIHU KI MAGETI</h1>
-                        <p id="app-header-subtitle" class="text-[10px] sm:text-xs text-emerald-200">Tahun 1447 H / 2026 M</p>
+                        <p id="app-header-subtitle" class="text-[10px] sm:text-xs text-emerald-200">Tahun 1448 H / 2027 M</p>
                     </div>
                 </div>
 
@@ -133,12 +132,12 @@
                 </div>
             </div>
 
-            <!-- Horizontal Scrollable Navigation Menu (Optimized Mobile) -->
+            <!-- Horizontal Navigation Bar -->
             <nav class="bg-emerald-900 px-4 flex space-x-2 overflow-x-auto no-scrollbar border-t border-emerald-700/50">
                 <button type="button" onclick="switchTab('dashboard', this)" class="nav-btn active border-b-2 border-emerald-400 text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">🏠 Dashboard Utama</button>
                 <button type="button" onclick="switchTab('jamaah', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition admin-only">👥 Data Jamaah</button>
                 <button type="button" onclick="switchTab('berkas', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">📁 Berkas Dokumen</button>
-                <button type="button" onclick="switchTab('pembayaran', this)" id="nav-pembayaran-title" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">💰 Riwayat Pembayaran</button>
+                <button type="button" onclick="switchTab('pembayaran', this)" id="nav-pembayaran-title" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">💳 Riwayat Pembayaran</button>
                 <button type="button" onclick="switchTab('jadwal', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">📅 Jadwal Manasik</button>
                 <button type="button" onclick="switchTab('setting', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition admin-only">⚙️ Pengaturan</button>
             </nav>
@@ -147,9 +146,8 @@
         <!-- Main Content Area -->
         <main class="flex-grow max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-5">
 
-            <!-- ================= TAB 0: DASHBOARD UTAMA ================= -->
+            <!-- TAB 0: DASHBOARD UTAMA -->
             <section id="tab-dashboard" class="tab-content space-y-5">
-                <!-- Welcome Banner -->
                 <div class="bg-gradient-to-r from-emerald-800 to-teal-700 text-white p-5 sm:p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h2 id="dash-welcome-user" class="text-xl sm:text-2xl font-extrabold">Selamat Datang, Jamaah</h2>
@@ -160,7 +158,6 @@
                     </div>
                 </div>
 
-                <!-- Quick Info Cards (3 Columns Desktop, 1 Column Mobile) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
                         <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl text-lg shrink-0">👥</div>
@@ -178,7 +175,6 @@
                         </div>
                     </div>
 
-                    <!-- CARD DYNAMIC: Ditampilkan sebagai TOTAL PEMBAYARAN SAYA untuk Jamaah -->
                     <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
                         <div class="p-3 bg-blue-100 text-blue-700 rounded-xl text-lg shrink-0">💳</div>
                         <div>
@@ -188,7 +184,6 @@
                     </div>
                 </div>
 
-                <!-- Upcoming Schedule List on Dashboard -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
                     <div class="flex justify-between items-center border-b pb-3">
                         <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
@@ -202,7 +197,7 @@
                 </div>
             </section>
 
-            <!-- ================= TAB 1: JAMAAH (Admin Only) ================= -->
+            <!-- TAB 1: JAMAAH (Admin Only - Ditambahi Kolom No. Porsi) -->
             <section id="tab-jamaah" class="tab-content hidden space-y-5">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                     <h2 class="text-base sm:text-xl font-bold text-slate-800">Manajemen Data Jamaah</h2>
@@ -222,6 +217,7 @@
                             <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
                                 <tr>
                                     <th class="p-3 sm:p-4">NIK</th>
+                                    <th class="p-3 sm:p-4">No. Porsi</th>
                                     <th class="p-3 sm:p-4">Nama Lengkap</th>
                                     <th class="p-3 sm:p-4">JK</th>
                                     <th class="p-3 sm:p-4">Alamat</th>
@@ -230,14 +226,14 @@
                                 </tr>
                             </thead>
                             <tbody id="table-jamaah-body" class="divide-y divide-slate-100">
-                                <tr><td colspan="6" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
+                                <tr><td colspan="7" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </section>
 
-            <!-- ================= TAB 2: BERKAS ================= -->
+            <!-- TAB 2: BERKAS (Ditambahi Informasi No. Porsi) -->
             <section id="tab-berkas" class="tab-content hidden space-y-5">
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                     <h2 class="text-base sm:text-xl font-bold text-slate-800 mb-1">Kelengkapan Berkas Dokumen</h2>
@@ -249,7 +245,7 @@
                         <table class="w-full text-left text-xs sm:text-sm text-slate-600">
                             <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
                                 <tr>
-                                    <th class="p-3 sm:p-4">Nama Jamaah</th>
+                                    <th class="p-3 sm:p-4">Nama Jamaah / NIK / No.Porsi</th>
                                     <th class="p-3 sm:p-4 text-center">KTP</th>
                                     <th class="p-3 sm:p-4 text-center">KK</th>
                                     <th class="p-3 sm:p-4 text-center">SPPH</th>
@@ -266,9 +262,8 @@
                 </div>
             </section>
 
-            <!-- ================= TAB 3: PEMBAYARAN ================= -->
+            <!-- TAB 3: PEMBAYARAN -->
             <section id="tab-pembayaran" class="tab-content hidden space-y-5">
-                <!-- Bagian Kas Lembaga (Hanya tampil untuk Admin) -->
                 <div id="admin-kas-summary" class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 admin-only">
                     <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-emerald-500 border-y border-r border-slate-200">
                         <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Pemasukan Kas</span>
@@ -317,7 +312,7 @@
                 </div>
             </section>
 
-            <!-- ================= TAB 4: JADWAL MANASIK ================= -->
+            <!-- TAB 4: JADWAL MANASIK -->
             <section id="tab-jadwal" class="tab-content hidden space-y-5">
                 <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                     <h2 class="text-base sm:text-xl font-bold text-slate-800">Agenda & Jadwal Manasik</h2>
@@ -329,7 +324,7 @@
                 </div>
             </section>
 
-            <!-- ================= TAB 5: SETTING (Admin Only) ================= -->
+            <!-- TAB 5: SETTING -->
             <section id="tab-setting" class="tab-content hidden space-y-5">
                 <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto">
                     <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-4 border-b pb-2">Pengaturan Sistem KBIHU</h2>
@@ -405,14 +400,18 @@
         </div>
     </div>
 
-    <!-- MODAL FORM JAMAAH -->
+    <!-- MODAL FORM JAMAAH (Ditambahi Field Nomor Porsi) -->
     <div id="modal-jamaah" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 class="text-base sm:text-lg font-bold text-slate-800">Tambah Data Jamaah</h3>
+            <h3 class="text-base sm:text-lg font-bold text-slate-800">Tambah / Edit Data Jamaah</h3>
             <form id="form-jamaah" onsubmit="submitJamaah(event)" class="space-y-3">
                 <div>
                     <label class="text-xs font-semibold text-slate-600">NIK (Nomor Induk Kependudukan)</label>
                     <input type="text" id="j-nik" pattern="[0-9]{16}" required title="NIK harus 16 digit" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600">Nomor Porsi Haji</label>
+                    <input type="text" id="j-porsi" placeholder="Contoh: 1300123456" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-600">Nama Lengkap</label>
