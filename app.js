@@ -392,17 +392,25 @@ function renderJamaah() {
     }
 
     DB.Jamaah.forEach(j => {
+        // Memastikan pengambilan properti tepat meskipun ada perbedaan di Google Sheets
+        const nik = j.nik || '-';
+        const noPorsi = j.no_porsi || j.porsi || '-';
+        const nama = j.nama || '-';
+        const jk = j.jk || 'L';
+        const alamat = j.alamat || '-';
+        const wa = j.wa || '-';
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
         tr.innerHTML = `
-            <td class="p-3 sm:p-4 font-semibold text-slate-700">${j.nik}</td>
-            <td class="p-3 sm:p-4 font-mono text-emerald-700 font-bold">${j.no_porsi || '-'}</td>
-            <td class="p-3 sm:p-4 font-medium text-slate-800">${j.nama}</td>
-            <td class="p-3 sm:p-4"><span class="px-2 py-1 rounded text-[10px] sm:text-xs font-semibold ${j.jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${j.jk==='L'?'Laki-laki':'Perempuan'}</span></td>
-            <td class="p-3 sm:p-4">${j.alamat}</td>
-            <td class="p-3 sm:p-4 text-emerald-600 font-medium"><a href="https://wa.me/${j.wa}" target="_blank">📱 ${j.wa}</a></td>
+            <td class="p-3 sm:p-4 font-semibold text-slate-700">${nik}</td>
+            <td class="p-3 sm:p-4 font-mono text-emerald-700 font-bold">${noPorsi}</td>
+            <td class="p-3 sm:p-4 font-medium text-slate-800">${nama}</td>
+            <td class="p-3 sm:p-4"><span class="px-2 py-1 rounded text-[10px] sm:text-xs font-semibold ${jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${jk==='L'?'Laki-laki':'Perempuan'}</span></td>
+            <td class="p-3 sm:p-4">${alamat}</td>
+            <td class="p-3 sm:p-4 text-emerald-600 font-medium"><a href="https://wa.me/${wa}" target="_blank">📱 ${wa}</a></td>
             <td class="p-3 sm:p-4 text-center">
-                <button type="button" onclick="deleteJamaah('${j.nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2.5 py-1 rounded-md">Hapus</button>
+                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2.5 py-1 rounded-md">Hapus</button>
             </td>
         `;
         tbody.appendChild(tr);
