@@ -273,7 +273,10 @@ function loadLocalStorage() {
     if (data) {
         try { DB = JSON.parse(data); } catch(e){}
     }
-    document.getElementById('cfg-script-url').value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8/exec';
+    if (!DB.Setting.script_url) {
+        DB.Setting.script_url = 'https://script.google.com/macros/s/AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8/exec'; // <-- MASUKKAN URL ANDA JUGA DI SINI
+    }
+    document.getElementById('cfg-script-url').value = DB.Setting.script_url || '';
     document.getElementById('cfg-nama-kbihu').value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
     document.getElementById('cfg-tahun').value = DB.Setting.tahun || '1448 H / 2027 M';
     document.getElementById('cfg-alamat').value = DB.Setting.alamat || '';
