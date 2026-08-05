@@ -24,7 +24,7 @@ let DB = {
     Pembayaran: [],
     Jadwal: [],
     Setting: {
-        script_url: '',
+        script_url: 'AKfycbw5-2THf_vqIAvaM-x2jNGnoVRpBRFEW2wuoSMcao65u0YwsGCSBgaJkjFJYAvbSCI8',
         admin_pass: 'admin123',
         nama_kbihu: 'KBIHU KI MAGETI',
         tahun: '1448 H / 2027 M',
