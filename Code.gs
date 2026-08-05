@@ -1,10 +1,10 @@
 /**
- * BACKEND KBIHU KI MAGETI (v2.2 Serverless API)
+ * BACKEND KBIHU KI MAGETI (v2.3 Serverless API)
  * Engine: Google Apps Script + Google Sheets
  */
 
 function doGet(e) {
-  return ContentService.createTextOutput("KBIHU KI Mageti API v2.2 Running...")
+  return ContentService.createTextOutput("KBIHU KI Mageti API v2.3 Running...")
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
@@ -76,7 +76,7 @@ function respondJSON(object) {
 function initSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheets = {
-    'Jamaah': ['nik', 'nama', 'alamat', 'jk', 'wa', 'created_at'],
+    'Jamaah': ['nik', 'no_porsi', 'nama', 'alamat', 'jk', 'wa', 'created_at'],
     'Berkas': ['nik', 'ktp', 'kk', 'spph', 'paspor', 'vaksin'],
     'Pembayaran': ['id_transaksi', 'tanggal', 'nik', 'nama', 'kategori', 'jenis', 'nominal', 'keterangan'],
     'Jadwal': ['id_jadwal', 'hari', 'tanggal', 'jam', 'tempat', 'materi', 'pemateri'],
@@ -97,6 +97,15 @@ function initSheets() {
         sheet.appendRow(['pimpinan', 'KH. Ahmad Mageti']);
         sheet.appendRow(['bendahara', 'Hj. Siti Aminah']);
         sheet.appendRow(['tempat_ttd', 'Magetan']);
+      }
+    } else {
+      // Pastikan header 'no_porsi' tersedia di Sheet Jamaah
+      if (name === 'Jamaah') {
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        if (headers.indexOf('no_porsi') === -1) {
+          sheet.insertColumnAfter(1);
+          sheet.getRange(1, 2).setValue('no_porsi');
+        }
       }
     }
   }
@@ -126,20 +135,22 @@ function handleLogin(payload) {
     const nikIdx = headers.indexOf('nik');
     const waIdx = headers.indexOf('wa');
     const namaIdx = headers.indexOf('nama');
+    const porsiIdx = headers.indexOf('no_porsi');
 
     for (let i = 1; i < jamaahSheet.length; i++) {
       const row = jamaahSheet[i];
       const nik = String(row[nikIdx]);
       const wa = String(row[waIdx]);
+      const porsi = porsiIdx !== -1 ? String(row[porsiIdx]) : '';
 
-      if ((username === nik || username === wa) && (password === nik || password === wa)) {
+      if ((username === nik || username === wa || username === porsi) && (password === nik || password === wa)) {
         return {
           role: 'jamaah',
-          user: { nik: nik, nama: row[namaIdx], wa: wa }
+          user: { nik: nik, no_porsi: porsi, nama: row[namaIdx], wa: wa }
         };
       }
     }
-    throw new Error('NIK / No. WA tidak ditemukan!');
+    throw new Error('NIK / No. WA / No. Porsi tidak ditemukan!');
   }
 }
 
