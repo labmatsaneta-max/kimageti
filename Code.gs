@@ -1,10 +1,10 @@
 /**
- * BACKEND KBIHU KI MAGETI (v2.3 Serverless API)
+ * BACKEND KBIHU KI MAGETI (v2.4 Serverless API - Identitas Jamaah Lengkap)
  * Engine: Google Apps Script + Google Sheets
  */
 
 function doGet(e) {
-  return ContentService.createTextOutput("KBIHU KI Mageti API v2.3 Running...")
+  return ContentService.createTextOutput("KBIHU KI Mageti API v2.4 Running...")
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
@@ -38,7 +38,7 @@ function doPost(e) {
         result = saveData('Jamaah', payload, ['nik']);
         break;
       case 'DELETE_JAMAAH':
-        result = deleteData('Jamaah', payload.nik, 1);
+        result = deleteData('Jamaah', payload.nik, 0); // nik berada pada kolom pertama (index 0)
         break;
       case 'SAVE_BERKAS':
         result = saveData('Berkas', payload, ['nik']);
@@ -63,7 +63,7 @@ function doPost(e) {
 
   } catch (error) {
     return respondJSON({ status: 'error', message: error.toString() });
-  } finally {
+  } fontally {
     lock.releaseLock();
   }
 }
@@ -75,66 +75,18 @@ function respondJSON(object) {
 
 function initSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const jamaahHeaders = [
+    'nik', 'no_porsi', 'nama', 'nama_ayah', 'jk', 
+    'tempat_lahir', 'tgl_lahir', 'usia', 'alamat', 'desa', 
+    'kecamatan', 'wa', 'hp_keluarga', 'riwayat_sakit', 'pengalaman_haji', 'created_at'
+  ];
+
   const sheets = {
-    'Jamaah': ['nik', 'no_porsi', 'nama', 'alamat', 'jk', 'wa', 'created_at'],
+    'Jamaah': jamaahHeaders,
     'Berkas': ['nik', 'ktp', 'kk', 'spph', 'paspor', 'vaksin'],
     'Pembayaran': ['id_transaksi', 'tanggal', 'nik', 'nama', 'kategori', 'jenis', 'nominal', 'keterangan'],
     'Jadwal': ['id_jadwal', 'hari', 'tanggal', 'jam', 'tempat', 'materi', 'pemateri'],
     'Setting': ['key', 'value']
-  };
-
-  for (let name in sheets) {
-    let sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      sheet.appendRow(sheets[name]);
-      if (name === 'Setting') {
-        sheet.appendRow(['admin_pass', 'admin123']);
-        sheet.appendRow(['nama_kbihu', 'KBIHU KI MAGETI']);
-        sheet.appendRow(['tahun', '1448 H / 2027 M']);
-        sheet.appendRow(['alamat', 'Jl. Raya Magetan - Maospati, Magetan, Jawa Timur']);
-        sheet.appendRow(['pimpinan', 'KH. Ahmad Mageti']);
-        sheet.appendRow(['bendahara', 'Hj. Siti Aminah']);
-        sheet.appendRow(['tempat_ttd', 'Magetan']);
-      }
-    }
-  }
-}
-
-function saveData(sheetName, item, keyFields) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(sheetName);
-  const values = sheet.getDataRange().getValues();
-  
-  // Ambil header resmi
-  let headers = values[0];
-
-  let rowIndex = -1;
-  if (values.length > 1) {
-    for (let i = 1; i < values.length; i++) {
-      let match = keyFields.every(kf => {
-        let colIdx = headers.indexOf(kf);
-        return String(values[i][colIdx]) === String(item[kf]);
-      });
-      if (match) {
-        rowIndex = i + 1;
-        break;
-      }
-    }
-  }
-
-  // Pemetaan nilai sesuai nama header kolom di Sheet
-  const rowData = headers.map(h => {
-    return item[h] !== undefined ? item[h] : '';
-  });
-
-  if (rowIndex > 0) {
-    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
-  } else {
-    sheet.appendRow(rowData);
-  }
-  return { updated: true };
-}
   };
 
   for (let name in sheets) {
@@ -152,15 +104,9 @@ function saveData(sheetName, item, keyFields) {
         sheet.appendRow(['bendahara', 'Hj. Siti Aminah']);
         sheet.appendRow(['tempat_ttd', 'Magetan']);
       }
-    } else {
-      // Pastikan header 'no_porsi' tersedia di Sheet Jamaah
-      if (name === 'Jamaah') {
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        if (headers.indexOf('no_porsi') === -1) {
-          sheet.insertColumnAfter(1);
-          sheet.getRange(1, 2).setValue('no_porsi');
-        }
-      }
+    } else if (name === 'Jamaah') {
+      // Perbarui header sheet Jamaah jika belum sesuai
+      sheet.getRange(1, 1, 1, jamaahHeaders.length).setValues([jamaahHeaders]);
     }
   }
 }
