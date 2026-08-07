@@ -1,612 +1,349 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KBIHU KI Mageti - Aplikasi Manajemen Jamaah Haji & Umrah</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        emerald: {
-                            50: '#ecfdf5', 100: '#d1fae5', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b'
-                        },
-                        slate: {
-                            50: '#f8fafc', 100: '#f1f5f9', 700: '#334155', 800: '#1e293b', 900: '#0f172a'
-                        }
-                    }
-                }
-            }
+/**
+ * BACKEND KBIHU KI MAGETI (v2.6 - Realtime Public Search & GMT+7 WIB Support)
+ */
+
+function doGet(e) {
+  return ContentService.createTextOutput("KBIHU KI Mageti API v2.6 Running...")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (err) {
+    return respondJSON({ status: 'error', message: 'Server sibuk, silakan coba lagi.' });
+  }
+
+  try {
+    const requestData = JSON.parse(e.postData.contents);
+    const action = requestData.action;
+    const payload = requestData.payload;
+
+    initSheets();
+
+    let result = {};
+    switch (action) {
+      case 'LOGIN':
+        result = handleLogin(payload);
+        break;
+      case 'READ_ALL':
+        result = readAllData();
+        break;
+      case 'READ_PUBLIC_JADWAL':
+        result = readPublicJadwal();
+        break;
+      case 'SEARCH_JAMAAH_PUBLIC':
+        result = searchJamaahPublicBackend(payload.query);
+        break;
+      case 'SAVE_JAMAAH':
+        result = saveData('Jamaah', payload, ['nik']);
+        break;
+      case 'DELETE_JAMAAH':
+        result = deleteData('Jamaah', payload.nik, 0);
+        break;
+      case 'SAVE_BERKAS':
+        result = saveData('Berkas', payload, ['nik']);
+        break;
+      case 'SAVE_TRANSAKSI':
+        result = saveData('Pembayaran', payload, ['id_transaksi']);
+        break;
+      case 'SAVE_JADWAL':
+        result = saveData('Jadwal', payload, ['id_jadwal']);
+        break;
+      case 'DELETE_JADWAL':
+        result = deleteData('Jadwal', payload.id_jadwal, 0);
+        break;
+      case 'SAVE_SETTING':
+        result = saveSetting(payload);
+        break;
+      default:
+        result = { status: 'error', message: 'Aksi tidak valid' };
+    }
+
+    return respondJSON({ status: 'success', data: result });
+
+  } catch (error) {
+    return respondJSON({ status: 'error', message: error.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function respondJSON(object) {
+  return ContentService.createTextOutput(JSON.stringify(object))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function initSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const jamaahHeaders = [
+    'nik', 'no_porsi', 'nama', 'nama_ayah', 'jk', 
+    'tempat_lahir', 'tgl_lahir', 'usia', 'alamat', 'desa', 
+    'kecamatan', 'wa', 'hp_keluarga', 'riwayat_sakit', 'pengalaman_haji', 'created_at'
+  ];
+
+  const sheets = {
+    'Jamaah': jamaahHeaders,
+    'Berkas': ['nik', 'ktp', 'kk', 'spph', 'paspor', 'vaksin'],
+    'Pembayaran': ['id_transaksi', 'tanggal', 'nik', 'nama', 'kategori', 'jenis', 'nominal', 'keterangan'],
+    'Jadwal': ['id_jadwal', 'hari', 'tanggal', 'jam', 'tempat', 'materi', 'pemateri'],
+    'Setting': ['key', 'value']
+  };
+
+  for (let name in sheets) {
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+      sheet.appendRow(sheets[name]);
+      
+      if (name === 'Setting') {
+        sheet.appendRow(['admin_pass', 'admin123']);
+        sheet.appendRow(['nama_kbihu', 'KBIHU KI MAGETI']);
+        sheet.appendRow(['tahun', '1448 H / 2027 M']);
+        sheet.appendRow(['alamat', 'Jl. Raya Magetan - Maospati, Magetan, Jawa Timur']);
+        sheet.appendRow(['pimpinan', 'KH. Ahmad Mageti']);
+        sheet.appendRow(['bendahara', 'Hj. Siti Aminah']);
+        sheet.appendRow(['tempat_ttd', 'Magetan']);
+      }
+    } else if (name === 'Jamaah') {
+      sheet.getRange(1, 1, 1, jamaahHeaders.length).setValues([jamaahHeaders]);
+    }
+  }
+}
+
+// FORMATTER SERVER GMT+7 WIB
+function formatServerDateWIB(d) {
+  if (!d) return '-';
+  if (d instanceof Date) {
+    return Utilities.formatDate(d, "Asia/Jakarta", "yyyy-MM-dd");
+  }
+  return String(d);
+}
+
+function searchJamaahPublicBackend(query) {
+  if (!query || String(query).trim().length < 2) return [];
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const jamaahSheet = ss.getSheetByName('Jamaah');
+  const berkasSheet = ss.getSheetByName('Berkas');
+
+  if (!jamaahSheet) return [];
+
+  const jValues = jamaahSheet.getDataRange().getValues();
+  if (jValues.length <= 1) return [];
+
+  const jHeaders = jValues[0];
+  const q = String(query).toLowerCase().trim();
+
+  const nikIdx = jHeaders.indexOf('nik');
+  const porsiIdx = jHeaders.indexOf('no_porsi');
+  const namaIdx = jHeaders.indexOf('nama');
+  const waIdx = jHeaders.indexOf('wa');
+
+  const matchedJamaah = [];
+
+  for (let i = 1; i < jValues.length; i++) {
+    const row = jValues[i];
+    const nik = String(row[nikIdx] || '').toLowerCase();
+    const porsi = String(row[porsiIdx] || '').toLowerCase();
+    const nama = String(row[namaIdx] || '').toLowerCase();
+    const wa = String(row[waIdx] || '').toLowerCase();
+
+    if (nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q)) {
+      let obj = {};
+      jHeaders.forEach((h, idx) => {
+        let val = row[idx];
+        if (h === 'tgl_lahir' || h === 'created_at') {
+          val = formatServerDateWIB(val);
         }
-    </script>
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- jsPDF & AutoTable -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- SheetJS (xlsx) -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- QRCode.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+        obj[h] = val;
+      });
+      matchedJamaah.push(obj);
+      if (matchedJamaah.length >= 5) break;
+    }
+  }
 
-    <!-- ================= PAGE 1: LOGIN VIEW & PUBLIC SEARCH ================= -->
-    <div id="view-login" class="min-h-screen flex items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-emerald-900 via-emerald-800 to-slate-900">
-        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 border border-emerald-700/30 my-auto">
-            
-            <!-- KOLOM 1: Form Login -->
-            <div class="p-5 sm:p-8 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-slate-100">
-                <div class="text-center space-y-2 mb-5">
-                    <div class="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0V11m0 0H9m1 0h1m-1 4h1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-                    </div>
-                    <h2 id="login-title-kbihu" class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">KBIHU KI MAGETI</h2>
-                    <p class="text-xs text-slate-500">Sistem Informasi & Layanan Jamaah Haji/Umrah</p>
-                </div>
+  // Ambil Data Berkas Pendukung
+  const bValues = berkasSheet ? berkasSheet.getDataRange().getValues() : [];
+  const bHeaders = bValues.length > 0 ? bValues[0] : [];
 
-                <!-- Role Selector Toggle -->
-                <div class="flex p-1 bg-slate-100 rounded-xl text-xs font-semibold mb-4">
-                    <button type="button" id="btn-role-jamaah" onclick="setLoginRole('jamaah')" class="flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold">👥 Jamaah</button>
-                    <button type="button" id="btn-role-admin" onclick="setLoginRole('admin')" class="flex-1 py-2 rounded-lg transition text-slate-600">🔑 Admin / Pengurus</button>
-                </div>
+  const results = matchedJamaah.map(j => {
+    let berkasObj = { ktp: false, kk: false, spph: false, paspor: false, vaksin: false };
+    if (bValues.length > 1) {
+      const bNikIdx = bHeaders.indexOf('nik');
+      for (let k = 1; k < bValues.length; k++) {
+        if (String(bValues[k][bNikIdx]) === String(j.nik)) {
+          bHeaders.forEach((bh, bCol) => berkasObj[bh] = bValues[k][bCol]);
+          break;
+        }
+      }
+    }
+    return { jamaah: j, berkas: berkasObj };
+  });
 
-                <form id="form-login" onsubmit="processLogin(event)" class="space-y-3">
-                    <div>
-                        <label id="lbl-username" class="block text-[11px] font-bold text-slate-600 uppercase mb-1">NO. PORSI / NO. WA / NIK</label>
-                        <input type="text" id="login-username" placeholder="Masukkan No. Porsi / WA / NIK" required class="w-full p-2.5 sm:p-3 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"/>
-                    </div>
+  return results;
+}
 
-                    <div>
-                        <label id="lbl-password" class="block text-[11px] font-bold text-slate-600 uppercase mb-1">PASSWORD (NO. PORSI / NO. WA / NIK)</label>
-                        <input type="password" id="login-password" placeholder="Masukkan No. Porsi / WA / NIK" required class="w-full p-2.5 sm:p-3 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"/>
-                    </div>
+function handleLogin(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const { username, password } = payload;
 
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-600/30 transition text-xs sm:text-sm flex justify-center items-center gap-2">
-                        <span>Masuk Aplikasi</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-                    </button>
-                </form>
+  if (username === 'admin') {
+    const settingSheet = ss.getSheetByName('Setting').getDataRange().getValues();
+    let adminPass = 'admin123';
+    settingSheet.forEach(r => {
+      if (r[0] === 'admin_pass') adminPass = r[1];
+    });
 
-                <div class="text-center pt-3 border-t border-slate-100 mt-4">
-                    <button type="button" onclick="openUrlConfigModal()" class="text-xs text-emerald-700 hover:underline font-semibold cursor-pointer">
-                        ⚙️ Atur URL Google Apps Script
-                    </button>
-                </div>
-            </div>
+    if (String(password) === String(adminPass)) {
+      return { role: 'admin', user: { nama: 'Administrator KBIHU', nik: 'ADMIN' } };
+    } else {
+      throw new Error('Password Admin Salah!');
+    }
+  } else {
+    const jamaahSheet = ss.getSheetByName('Jamaah').getDataRange().getValues();
+    if (jamaahSheet.length <= 1) throw new Error('Data Jamaah Belum Terdaftar!');
 
-            <!-- KOLOM 2: Public Search & Schedule -->
-            <div class="p-5 sm:p-8 bg-slate-50 flex flex-col justify-between space-y-4 max-h-[85vh] overflow-y-auto">
-                <div class="space-y-4">
-                    
-                    <!-- FITUR 1: Cek Data Jamaah & Berkas (Halaman Depan) -->
-                    <div class="bg-emerald-800 text-white p-4 rounded-2xl shadow-sm space-y-2">
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200 flex items-center gap-1.5">
-                            🔍 Cek Status Jamaah & Berkas
-                        </h3>
-                        <div class="relative">
-                            <input type="text" id="public-search-input" onkeyup="searchJamaahPublic()" placeholder="Ketik Nama, No. Porsi, HP, atau NIK..." class="w-full p-2.5 pl-3 pr-8 rounded-xl text-slate-800 text-xs sm:text-sm outline-none font-medium shadow-inner"/>
-                            <span class="absolute right-2.5 top-2.5 text-slate-400 text-xs">🔎</span>
-                        </div>
-                        <div id="public-search-results" class="hidden space-y-2 max-h-48 overflow-y-auto pt-2 border-t border-emerald-700/60">
-                            <!-- Hasil pencarian publik via JS -->
-                        </div>
-                    </div>
+    const headers = jamaahSheet[0];
+    const nikIdx = headers.indexOf('nik');
+    const waIdx = headers.indexOf('wa');
+    const namaIdx = headers.indexOf('nama');
+    const porsiIdx = headers.indexOf('no_porsi');
 
-                    <!-- Jadwal Kegiatan Manasik -->
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-1.5">
-                                📌 Jadwal Manasik
-                            </h2>
-                            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Umum</span>
-                        </div>
-                        <div id="public-jadwal-list" class="space-y-2">
-                            <div class="text-center text-xs text-slate-400 py-3">Memuat agenda manasik...</div>
-                        </div>
-                    </div>
+    for (let i = 1; i < jamaahSheet.length; i++) {
+      const row = jamaahSheet[i];
+      const nik = String(row[nikIdx]);
+      const wa = String(row[waIdx]);
+      const porsi = porsiIdx !== -1 ? String(row[porsiIdx]) : '';
 
-                </div>
+      const inputUser = String(username).trim();
+      const inputPass = String(password).trim();
 
-                <div class="pt-2 border-t border-slate-200 text-center shrink-0">
-                    <p class="text-[11px] text-slate-400">Silakan login untuk mengakses riwayat pembayaran & transaksi keuangan.</p>
-                </div>
-            </div>
+      const matchUser = (inputUser === nik || inputUser === wa || (porsi && inputUser === porsi));
+      const matchPass = (inputPass === nik || inputPass === wa || (porsi && inputPass === porsi));
 
-        </div>
-    </div>
+      if (matchUser && matchPass) {
+        return {
+          role: 'jamaah',
+          user: { nik: nik, no_porsi: porsi, nama: row[namaIdx], wa: wa }
+        };
+      }
+    }
+    throw new Error('No. Porsi / No. WA / NIK tidak ditemukan!');
+  }
+}
 
+function readAllData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const result = {};
+  const sheetNames = ['Jamaah', 'Berkas', 'Pembayaran', 'Jadwal', 'Setting'];
 
-    <!-- ================= PAGE 2: MAIN APP DASHBOARD ================= -->
-    <div id="view-app" class="hidden min-h-screen flex flex-col">
-        
-        <!-- Top Header Navbar -->
-        <header class="bg-emerald-800 text-white shadow-lg sticky top-0 z-40">
-            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <div class="p-2 bg-emerald-700 rounded-xl">
-                        <svg class="w-6 h-6 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0V11m0 0H9m1 0h1m-1 4h1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-                    </div>
-                    <div>
-                        <h1 id="app-header-title" class="font-bold text-sm sm:text-base md:text-lg leading-tight">KBIHU KI MAGETI</h1>
-                        <p id="app-header-subtitle" class="text-[10px] sm:text-xs text-emerald-200">Tahun 1448 H / 2027 M</p>
-                    </div>
-                </div>
+  sheetNames.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      result[name] = [];
+      return;
+    }
+    const values = sheet.getDataRange().getValues();
+    if (values.length <= 1) {
+      result[name] = [];
+      return;
+    }
 
-                <div class="flex items-center gap-2">
-                    <span id="user-badge-role" class="hidden sm:inline-block px-3 py-1 bg-emerald-900 text-emerald-200 rounded-full text-xs font-medium">Jamaah</span>
-                    <button type="button" onclick="syncData()" title="Sinkronisasi Data" class="bg-emerald-700 hover:bg-emerald-600 p-2 rounded-lg transition text-xs font-semibold">
-                        <svg id="sync-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-                    </button>
-                    <button type="button" onclick="processLogout()" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">Keluar</button>
-                </div>
-            </div>
+    const headers = values[0];
+    const rows = values.slice(1);
+    result[name] = rows.map(row => {
+      let obj = {};
+      headers.forEach((h, i) => {
+        let val = row[i];
+        if (val instanceof Date) {
+          val = formatServerDateWIB(val);
+        }
+        obj[h] = val;
+      });
+      return obj;
+    });
+  });
 
-            <!-- Horizontal Navigation Bar -->
-            <nav class="bg-emerald-900 px-4 flex space-x-2 overflow-x-auto no-scrollbar border-t border-emerald-700/50">
-                <button type="button" onclick="switchTab('dashboard', this)" class="nav-btn active border-b-2 border-emerald-400 text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">🏠 Dashboard Utama</button>
-                <button type="button" onclick="switchTab('jamaah', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition admin-only">👥 Data Jamaah</button>
-                <button type="button" onclick="switchTab('berkas', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">📁 Berkas Dokumen</button>
-                <button type="button" onclick="switchTab('pembayaran', this)" id="nav-pembayaran-title" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">💳 Riwayat Pembayaran</button>
-                <button type="button" onclick="switchTab('jadwal', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition">📅 Jadwal Manasik</button>
-                <button type="button" onclick="switchTab('setting', this)" class="nav-btn text-emerald-200 hover:text-white px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition admin-only">⚙️ Pengaturan</button>
-            </nav>
-        </header>
+  return result;
+}
 
-        <!-- Main Content Area -->
-        <main class="flex-grow max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-5">
+function readPublicJadwal() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Jadwal');
+  if (!sheet) return [];
+  
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
 
-            <!-- TAB 0: DASHBOARD UTAMA -->
-            <section id="tab-dashboard" class="tab-content space-y-5">
-                <div class="bg-gradient-to-r from-emerald-800 to-teal-700 text-white p-5 sm:p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                        <h2 id="dash-welcome-user" class="text-xl sm:text-2xl font-extrabold">Selamat Datang, Jamaah</h2>
-                        <p id="dash-welcome-sub" class="text-emerald-100 text-xs sm:text-sm mt-1">Panduan informasi manasik, berkas, dan administrasi keuangan KBIHU KI Mageti.</p>
-                    </div>
-                    <div id="dash-info-ringkasan" class="bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold border border-white/20 self-start sm:self-center">
-                        Status Portal: Active
-                    </div>
-                </div>
+  const headers = values[0];
+  const rows = values.slice(1);
+  return rows.map(row => {
+    let obj = {};
+    headers.forEach((h, i) => {
+      let val = row[i];
+      if (val instanceof Date) {
+        val = formatServerDateWIB(val);
+      }
+      obj[h] = val;
+    });
+    return obj;
+  });
+}
 
-                <!-- FITUR 2: Pencarian Jamaah Cepat di Dashboard Admin -->
-                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-                    <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
-                        <span>🔎 Pencarian Cepat Data Jamaah & Berkas Dokumen</span>
-                    </h3>
-                    <div class="relative">
-                        <input type="text" id="admin-dash-search" onkeyup="searchJamaahAdminDash()" placeholder="Ketik Nama Jamaah, Nomor Porsi, No. HP, atau NIK..." class="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-medium"/>
-                    </div>
-                    <div id="admin-dash-search-results" class="hidden space-y-3 pt-2">
-                        <!-- Hasil Pencarian Dashboard Admin via JS -->
-                    </div>
-                </div>
+function saveData(sheetName, item, keyFields) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                        <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl text-lg shrink-0">👥</div>
-                        <div>
-                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase">Total Jamaah Terdaftar</span>
-                            <h3 id="dash-stat-jamaah" class="text-lg sm:text-2xl font-bold text-slate-800">0 Jamaah</h3>
-                        </div>
-                    </div>
+  let rowIndex = -1;
+  if (values.length > 1) {
+    for (let i = 1; i < values.length; i++) {
+      let match = keyFields.every(kf => {
+        let colIdx = headers.indexOf(kf);
+        return String(values[i][colIdx]) === String(item[kf]);
+      });
+      if (match) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+  }
 
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                        <div class="p-3 bg-teal-100 text-teal-700 rounded-xl text-lg shrink-0">📅</div>
-                        <div>
-                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase">Agenda Manasik</span>
-                            <h3 id="dash-stat-jadwal" class="text-lg sm:text-2xl font-bold text-slate-800">0 Sesi</h3>
-                        </div>
-                    </div>
+  const rowData = headers.map(h => item[h] !== undefined ? item[h] : '');
 
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
-                        <div class="p-3 bg-blue-100 text-blue-700 rounded-xl text-lg shrink-0">💳</div>
-                        <div>
-                            <span id="dash-stat-kas-label" class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase">Total Pembayaran Saya</span>
-                            <h3 id="dash-stat-kas" class="text-lg sm:text-2xl font-bold text-emerald-700">Rp 0</h3>
-                        </div>
-                    </div>
-                </div>
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+  return { updated: true };
+}
 
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
-                    <div class="flex justify-between items-center border-b pb-3">
-                        <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
-                            <span>📌 Agenda Manasik Mendatang</span>
-                        </h3>
-                        <button type="button" onclick="switchTab('jadwal', document.querySelectorAll('.nav-btn')[4])" class="text-emerald-700 hover:underline text-xs font-semibold">Lihat Semua Agenda →</button>
-                    </div>
-                    <div id="dash-jadwal-container" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                        <!-- Rendered via JS -->
-                    </div>
-                </div>
-            </section>
+function deleteData(sheetName, keyValue, colIndex) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  const values = sheet.getDataRange().getValues();
 
-            <!-- TAB 1: JAMAAH (Admin Only) -->
-            <section id="tab-jamaah" class="tab-content hidden space-y-5">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <h2 class="text-base sm:text-xl font-bold text-slate-800">Manajemen Data Jamaah</h2>
-                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <button type="button" onclick="openModalJamaah()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1">+ Jamaah</button>
-                        <button type="button" onclick="downloadExcelTemplate()" class="bg-teal-700 hover:bg-teal-800 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1">📥 Template Import Excel</button>
-                        <button type="button" onclick="exportJamaahExcel()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition">Export Excel</button>
-                        <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition border border-slate-300">
-                            Import Excel
-                            <input type="file" id="import-excel-file" accept=".xlsx, .xls" class="hidden" onchange="importJamaahExcel(event)"/>
-                        </label>
-                    </div>
-                </div>
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][colIndex]) === String(keyValue)) {
+      sheet.deleteRow(i + 1);
+      return { deleted: true };
+    }
+  }
+  return { deleted: false };
+}
 
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs sm:text-sm text-slate-600 whitespace-nowrap">
-                            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
-                                <tr>
-                                    <th class="p-3 sm:p-4">No. Porsi</th>
-                                    <th class="p-3 sm:p-4">Nama Jamaah</th>
-                                    <th class="p-3 sm:p-4">Nama Ayah</th>
-                                    <th class="p-3 sm:p-4">L/P</th>
-                                    <th class="p-3 sm:p-4">TTL & Usia</th>
-                                    <th class="p-3 sm:p-4">Alamat / Desa / Kec</th>
-                                    <th class="p-3 sm:p-4">No. HP / HP Keluarga</th>
-                                    <th class="p-3 sm:p-4">Riwayat Sakit</th>
-                                    <th class="p-3 sm:p-4">Pengalaman Haji</th>
-                                    <th class="p-3 sm:p-4 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-jamaah-body" class="divide-y divide-slate-100">
-                                <tr><td colspan="10" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+function saveSetting(settingObj) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Setting');
+  sheet.clear();
+  sheet.appendRow(['key', 'value']);
 
-            <!-- TAB 2: BERKAS -->
-            <section id="tab-berkas" class="tab-content hidden space-y-5">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <h2 class="text-base sm:text-xl font-bold text-slate-800 mb-1">Kelengkapan Berkas Dokumen</h2>
-                    <p class="text-xs sm:text-sm text-slate-500">Verifikasi kelengkapan dokumen administrasi haji & umrah.</p>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs sm:text-sm text-slate-600">
-                            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
-                                <tr>
-                                    <th class="p-3 sm:p-4">Nama Jamaah / NIK / No.Porsi</th>
-                                    <th class="p-3 sm:p-4 text-center">KTP</th>
-                                    <th class="p-3 sm:p-4 text-center">KK</th>
-                                    <th class="p-3 sm:p-4 text-center">SPPH</th>
-                                    <th class="p-3 sm:p-4 text-center">Paspor</th>
-                                    <th class="p-3 sm:p-4 text-center">Vaksin</th>
-                                    <th class="p-3 sm:p-4 text-center admin-only">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-berkas-body" class="divide-y divide-slate-100">
-                                <tr><td colspan="7" class="p-4 text-center text-slate-400">Memuat data berkas...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TAB 3: PEMBAYARAN -->
-            <section id="tab-pembayaran" class="tab-content hidden space-y-5">
-                <div id="admin-kas-summary" class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 admin-only">
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-emerald-500 border-y border-r border-slate-200">
-                        <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Pemasukan Kas</span>
-                        <h3 id="dash-pemasukan" class="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1">Rp 0</h3>
-                    </div>
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-rose-500 border-y border-r border-slate-200">
-                        <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Pengeluaran Kas</span>
-                        <h3 id="dash-pengeluaran" class="text-xl sm:text-2xl font-extrabold text-rose-600 mt-1">Rp 0</h3>
-                    </div>
-                    <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-blue-500 border-y border-r border-slate-200">
-                        <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Sisa Kas KBIHU</span>
-                        <h3 id="dash-sisa" class="text-xl sm:text-2xl font-extrabold text-blue-600 mt-1">Rp 0</h3>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap justify-between items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex flex-wrap gap-2 admin-only">
-                        <button type="button" onclick="openModalBayar('Iuran Manasik')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition">+ Iuran Manasik</button>
-                        <button type="button" onclick="openModalBayar('Pembayaran DAM')" class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition">+ Pembayaran DAM</button>
-                        <button type="button" onclick="openModalBayar('Pengeluaran')" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition">- Pengeluaran Kas</button>
-                    </div>
-                    <button type="button" onclick="cetakLaporanKeuangan()" class="bg-slate-800 hover:bg-slate-900 text-white px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 ml-auto border border-slate-700">
-                        📄 Cetak Laporan
-                    </button>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div id="pembayaran-table-title" class="p-4 border-b border-slate-100 font-bold text-slate-700 text-sm sm:text-base">Riwayat Pembayaran Anda</div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs sm:text-sm text-slate-600">
-                            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
-                                <tr>
-                                    <th class="p-3 sm:p-4">ID / Tgl</th>
-                                    <th class="p-3 sm:p-4">Kategori</th>
-                                    <th class="p-3 sm:p-4">Jamaah / Detail</th>
-                                    <th class="p-3 sm:p-4">Nominal</th>
-                                    <th class="p-3 sm:p-4">Keterangan</th>
-                                    <th class="p-3 sm:p-4 text-center">Cetak</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-transaksi-body" class="divide-y divide-slate-100">
-                                <tr><td colspan="6" class="p-4 text-center text-slate-400">Memuat riwayat transaksi...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TAB 4: JADWAL MANASIK -->
-            <section id="tab-jadwal" class="tab-content hidden space-y-5">
-                <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <h2 class="text-base sm:text-xl font-bold text-slate-800">Agenda & Jadwal Manasik</h2>
-                    <button type="button" onclick="openModal('modal-jadwal')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition admin-only">+ Jadwal Baru</button>
-                </div>
-
-                <div id="jadwal-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                    <!-- Cards Rendered via JS -->
-                </div>
-            </section>
-
-            <!-- TAB 5: SETTING -->
-            <section id="tab-setting" class="tab-content hidden space-y-5">
-                <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto">
-                    <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-4 border-b pb-2">Pengaturan Sistem KBIHU</h2>
-                    <form id="form-setting" onsubmit="saveSettings(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Google Apps Script Web App URL</label>
-                            <input type="url" id="cfg-script-url" placeholder="https://script.google.com/macros/s/.../exec" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password Admin Baru (Opsional)</label>
-                            <input type="text" id="cfg-admin-pass" placeholder="Password admin saat ini / baru" class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama KBIHU</label>
-                                <input type="text" id="cfg-nama-kbihu" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Tahun Hijriah / Masehi</label>
-                                <input type="text" id="cfg-tahun" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Alamat Sekretariat</label>
-                            <textarea id="cfg-alamat" rows="2" class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Pimpinan</label>
-                                <input type="text" id="cfg-pimpinan" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Bendahara</label>
-                                <input type="text" id="cfg-bendahara" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Tempat TTD</label>
-                                <input type="text" id="cfg-tempat-ttd" required class="w-full p-2.5 text-xs sm:text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            </div>
-                        </div>
-                        <div class="pt-4 flex justify-between items-center border-t">
-                            <button type="button" onclick="resetLocalData()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">Reset Data Lokal</button>
-                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">Simpan Pengaturan</button>
-                        </div>
-                    </form>
-                </div>
-            </section>
-
-        </main>
-    </div>
-
-
-    <!-- ================= MODALS ================= -->
-
-    <!-- MODAL SETTING APPS SCRIPT URL -->
-    <div id="modal-config-url" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-emerald-500/30">
-            <div class="flex justify-between items-center border-b pb-2">
-                <h3 class="text-base sm:text-lg font-bold text-slate-800">⚙️ Set URL Google Apps Script</h3>
-                <button type="button" onclick="closeModal('modal-config-url')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
-            </div>
-            <p class="text-xs text-slate-600 leading-relaxed">
-                Masukkan URL Web App Google Apps Script yang dihasilkan saat Anda memilih <b>Deploy &gt; New deployment</b> (berakhiran <code>/exec</code>).
-            </p>
-            <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Web App URL</label>
-                <input type="url" id="input-quick-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-3 border rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500"/>
-            </div>
-            <div class="flex justify-end gap-2 pt-2 border-t">
-                <button type="button" onclick="closeModal('modal-config-url')" class="px-4 py-2 text-xs sm:text-sm text-slate-600 rounded-lg border">Batal</button>
-                <button type="button" onclick="saveQuickUrl()" class="px-4 py-2 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition">Simpan URL</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL FORM JAMAAH -->
-    <div id="modal-jamaah" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-xl space-y-4 my-auto max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center border-b pb-2">
-                <h3 id="modal-jamaah-title" class="text-base sm:text-lg font-bold text-slate-800">Tambah Data Jamaah</h3>
-                <button type="button" onclick="closeModal('modal-jamaah')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
-            </div>
-            <form id="form-jamaah" onsubmit="submitJamaah(event)" class="space-y-3">
-                <input type="hidden" id="j-edit-original-nik"/>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">NIK (Opsional - Kosongkan Jika Belum Ada)</label>
-                        <input type="text" id="j-nik" placeholder="Kosongkan jika tidak tahu NIK" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nomor Porsi Haji</label>
-                        <input type="text" id="j-porsi" placeholder="Contoh: 1300123456" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Jamaah</label>
-                        <input type="text" id="j-nama" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Ayah Kandung</label>
-                        <input type="text" id="j-nama-ayah" placeholder="Nama ayah kandung" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">L/P (Jenis Kelamin)</label>
-                        <select id="j-jk" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none">
-                            <option value="L">Laki-laki (L)</option>
-                            <option value="P">Perempuan (P)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Tempat Lahir</label>
-                        <input type="text" id="j-tempat-lahir" placeholder="Kota/Kab" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Tanggal Lahir (TTL)</label>
-                        <input type="date" id="j-tgl-lahir" onchange="hitungsUsiaOtomatis()" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Usia (Otomatis)</label>
-                        <input type="text" id="j-usia" readonly placeholder="Otomatis terisi" class="w-full p-2 bg-slate-100 border rounded-xl text-xs sm:text-sm mt-1 font-bold text-emerald-700 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Desa / Kelurahan</label>
-                        <input type="text" id="j-desa" placeholder="Desa/Kelurahan" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nama Kecamatan</label>
-                        <input type="text" id="j-kecamatan" placeholder="Kecamatan" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="text-[11px] font-bold text-slate-600 uppercase">Alamat Jalan / RT / RW</label>
-                    <textarea id="j-alamat" rows="2" placeholder="Jl. Raya No..., RT... RW..." class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nomor HP (WhatsApp)</label>
-                        <input type="text" id="j-wa" placeholder="628..." class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Nomor HP Keluarga (Darurat)</label>
-                        <input type="text" id="j-hp-keluarga" placeholder="628..." class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Riwayat Sakit / Risti</label>
-                        <input type="text" id="j-riwayat-sakit" placeholder="Contoh: Hipertensi, Diabetes, NGT (Bila ada)" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 uppercase">Pengalaman Haji</label>
-                        <select id="j-pengalaman-haji" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none">
-                            <option value="Belum Pernah">Belum Pernah</option>
-                            <option value="Sudah Pernah">Sudah Pernah</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="flex justify-end space-x-2 pt-3 border-t">
-                    <button type="button" onclick="closeModal('modal-jamaah')" class="px-4 py-2 text-xs sm:text-sm text-slate-600 rounded-xl border">Batal</button>
-                    <button type="submit" class="px-4 py-2 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition">Simpan Data Jamaah</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- MODAL FORM TRANSAKSI -->
-    <div id="modal-transaksi" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 id="modal-transaksi-title" class="text-base sm:text-lg font-bold text-slate-800">Entri Pembayaran</h3>
-            <form id="form-transaksi" onsubmit="submitTransaksi(event)" class="space-y-3">
-                <input type="hidden" id="t-kategori"/>
-                <div id="container-select-jamaah">
-                    <label class="text-xs font-semibold text-slate-600">Pilih Jamaah</label>
-                    <select id="t-nik" onchange="updateNamaJamaah()" class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1">
-                        <option value="">-- Pilih Jamaah --</option>
-                    </select>
-                    <input type="hidden" id="t-nama"/>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Nominal (Rp)</label>
-                    <input type="number" id="t-nominal" min="1000" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Keterangan / Catatan</label>
-                    <input type="text" id="t-keterangan" placeholder="Catatan transaksi..." required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div class="flex justify-end space-x-2 pt-3 border-t">
-                    <button type="button" onclick="closeModal('modal-transaksi')" class="px-4 py-2 text-xs sm:text-sm text-slate-600">Batal</button>
-                    <button type="submit" class="px-4 py-2 text-xs sm:text-sm bg-emerald-600 text-white rounded-lg font-medium">Proses Transaksi</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- MODAL FORM JADWAL -->
-    <div id="modal-jadwal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 class="text-base sm:text-lg font-bold text-slate-800">Tambah Jadwal Manasik</h3>
-            <form id="form-jadwal" onsubmit="submitJadwal(event)" class="space-y-3">
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="text-xs font-semibold text-slate-600">Hari</label>
-                        <input type="text" id="jd-hari" placeholder="Sabtu" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-600">Tanggal</label>
-                        <input type="date" id="jd-tanggal" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Jam / Waktu</label>
-                    <input type="text" id="jd-jam" placeholder="08:00 - 12:00 WIB" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Tempat / Lokasi</label>
-                    <input type="text" id="jd-tempat" placeholder="Gedung KBIHU / Lapangan" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Materi Manasik</label>
-                    <input type="text" id="jd-materi" placeholder="Tawaf & Sa'i" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-600">Pemateri / Pembimbing</label>
-                    <input type="text" id="jd-pemateri" required class="w-full p-2 border rounded-xl text-xs sm:text-sm mt-1"/>
-                </div>
-                <div class="flex justify-end space-x-2 pt-3 border-t">
-                    <button type="button" onclick="closeModal('modal-jadwal')" class="px-4 py-2 text-xs sm:text-sm text-slate-600">Batal</button>
-                    <button type="submit" class="px-4 py-2 text-xs sm:text-sm bg-emerald-600 text-white rounded-lg font-medium">Simpan Jadwal</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="qr-hidden-container" class="hidden"></div>
-
-    <script src="app.js"></script>
-</body>
-</html>
+  for (let k in settingObj) {
+    sheet.appendRow([k, settingObj[k]]);
+  }
+  return { success: true };
+}
