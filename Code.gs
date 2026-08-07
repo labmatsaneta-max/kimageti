@@ -1,10 +1,9 @@
 /**
- * BACKEND KBIHU KI MAGETI (v2.5 - Login Fleksibel & NIK Opsional)
- * Engine: Google Apps Script + Google Sheets
+ * BACKEND KBIHU KI MAGETI (v2.6 - Realtime Public Search & GMT+7 WIB Support)
  */
 
 function doGet(e) {
-  return ContentService.createTextOutput("KBIHU KI Mageti API v2.5 Running...")
+  return ContentService.createTextOutput("KBIHU KI Mageti API v2.6 Running...")
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
@@ -33,6 +32,9 @@ function doPost(e) {
         break;
       case 'READ_PUBLIC_JADWAL':
         result = readPublicJadwal();
+        break;
+      case 'SEARCH_JAMAAH_PUBLIC':
+        result = searchJamaahPublicBackend(payload.query);
         break;
       case 'SAVE_JAMAAH':
         result = saveData('Jamaah', payload, ['nik']);
@@ -110,6 +112,79 @@ function initSheets() {
   }
 }
 
+// FORMATTER SERVER GMT+7 WIB
+function formatServerDateWIB(d) {
+  if (!d) return '-';
+  if (d instanceof Date) {
+    return Utilities.formatDate(d, "Asia/Jakarta", "yyyy-MM-dd");
+  }
+  return String(d);
+}
+
+function searchJamaahPublicBackend(query) {
+  if (!query || String(query).trim().length < 2) return [];
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const jamaahSheet = ss.getSheetByName('Jamaah');
+  const berkasSheet = ss.getSheetByName('Berkas');
+
+  if (!jamaahSheet) return [];
+
+  const jValues = jamaahSheet.getDataRange().getValues();
+  if (jValues.length <= 1) return [];
+
+  const jHeaders = jValues[0];
+  const q = String(query).toLowerCase().trim();
+
+  const nikIdx = jHeaders.indexOf('nik');
+  const porsiIdx = jHeaders.indexOf('no_porsi');
+  const namaIdx = jHeaders.indexOf('nama');
+  const waIdx = jHeaders.indexOf('wa');
+
+  const matchedJamaah = [];
+
+  for (let i = 1; i < jValues.length; i++) {
+    const row = jValues[i];
+    const nik = String(row[nikIdx] || '').toLowerCase();
+    const porsi = String(row[porsiIdx] || '').toLowerCase();
+    const nama = String(row[namaIdx] || '').toLowerCase();
+    const wa = String(row[waIdx] || '').toLowerCase();
+
+    if (nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q)) {
+      let obj = {};
+      jHeaders.forEach((h, idx) => {
+        let val = row[idx];
+        if (h === 'tgl_lahir' || h === 'created_at') {
+          val = formatServerDateWIB(val);
+        }
+        obj[h] = val;
+      });
+      matchedJamaah.push(obj);
+      if (matchedJamaah.length >= 5) break;
+    }
+  }
+
+  // Ambil Data Berkas Pendukung
+  const bValues = berkasSheet ? berkasSheet.getDataRange().getValues() : [];
+  const bHeaders = bValues.length > 0 ? bValues[0] : [];
+
+  const results = matchedJamaah.map(j => {
+    let berkasObj = { ktp: false, kk: false, spph: false, paspor: false, vaksin: false };
+    if (bValues.length > 1) {
+      const bNikIdx = bHeaders.indexOf('nik');
+      for (let k = 1; k < bValues.length; k++) {
+        if (String(bValues[k][bNikIdx]) === String(j.nik)) {
+          bHeaders.forEach((bh, bCol) => berkasObj[bh] = bValues[k][bCol]);
+          break;
+        }
+      }
+    }
+    return { jamaah: j, berkas: berkasObj };
+  });
+
+  return results;
+}
+
 function handleLogin(payload) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const { username, password } = payload;
@@ -180,7 +255,13 @@ function readAllData() {
     const rows = values.slice(1);
     result[name] = rows.map(row => {
       let obj = {};
-      headers.forEach((h, i) => obj[h] = row[i]);
+      headers.forEach((h, i) => {
+        let val = row[i];
+        if (val instanceof Date) {
+          val = formatServerDateWIB(val);
+        }
+        obj[h] = val;
+      });
       return obj;
     });
   });
@@ -200,7 +281,13 @@ function readPublicJadwal() {
   const rows = values.slice(1);
   return rows.map(row => {
     let obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
+    headers.forEach((h, i) => {
+      let val = row[i];
+      if (val instanceof Date) {
+        val = formatServerDateWIB(val);
+      }
+      obj[h] = val;
+    });
     return obj;
   });
 }
