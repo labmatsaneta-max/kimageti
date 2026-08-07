@@ -67,6 +67,63 @@ function setLoginRole(role) {
     }
 }
 
+// Hitung Otomatis Usia saat tanggal lahir diisi
+function hitungsUsiaOtomatis() {
+    const tglLahirInput = document.getElementById('j-tgl-lahir').value;
+    const inputUsia = document.getElementById('j-usia');
+
+    if (!tglLahirInput) {
+        inputUsia.value = '';
+        return;
+    }
+
+    const birthDate = new Date(tglLahirInput);
+    const today = new Date();
+
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+
+    inputUsia.value = age > 0 ? `${age} Tahun` : '0 Tahun';
+}
+
+function openModalJamaah(nik = null) {
+    const form = document.getElementById('form-jamaah');
+    form.reset();
+    document.getElementById('j-usia').value = '';
+
+    if (nik) {
+        const j = DB.Jamaah.find(x => String(x.nik) === String(nik));
+        if (j) {
+            document.getElementById('modal-jamaah-title').innerText = 'Edit Data Jamaah';
+            document.getElementById('j-nik').value = j.nik || '';
+            document.getElementById('j-porsi').value = j.no_porsi || '';
+            document.getElementById('j-nama').value = j.nama || '';
+            document.getElementById('j-nama-ayah').value = j.nama_ayah || '';
+            document.getElementById('j-jk').value = j.jk || 'L';
+            document.getElementById('j-tempat-lahir').value = j.tempat_lahir || '';
+            document.getElementById('j-tgl-lahir').value = j.tgl_lahir || '';
+            document.getElementById('j-usia').value = j.usia || '';
+            document.getElementById('j-desa').value = j.desa || '';
+            document.getElementById('j-kecamatan').value = j.kecamatan || '';
+            document.getElementById('j-alamat').value = j.alamat || '';
+            document.getElementById('j-wa').value = j.wa || '';
+            document.getElementById('j-hp-keluarga').value = j.hp_keluarga || '';
+            document.getElementById('j-riwayat-sakit').value = j.riwayat_sakit || '';
+            document.getElementById('j-pengalaman-haji').value = j.pengalaman_haji || 'Belum Pernah';
+
+            if (j.tgl_lahir && !j.usia) hitungsUsiaOtomatis();
+        }
+    } else {
+        document.getElementById('modal-jamaah-title').innerText = 'Tambah Data Jamaah';
+    }
+
+    openModal('modal-jamaah');
+}
+
 async function fetchPublicJadwal() {
     const container = document.getElementById('public-jadwal-list');
     if (!container) return;
@@ -81,29 +138,6 @@ async function fetchPublicJadwal() {
         } else {
             container.innerHTML = '<div class="text-center text-xs text-slate-400 py-3">Belum ada agenda jadwal manasik.</div>';
         }
-    } else {
-        container.innerHTML = `
-            <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-                <div class="bg-emerald-100 text-emerald-800 font-bold p-2 rounded-lg text-center min-w-[48px] shrink-0">
-                    <span class="block text-[10px] uppercase">AGU</span>
-                    <span class="text-base sm:text-lg leading-none">12</span>
-                </div>
-                <div class="min-w-0">
-                    <h3 class="text-xs sm:text-sm font-semibold text-slate-800 truncate">Manasik Teori: Thawaf & Sa'i</h3>
-                    <p class="text-[11px] text-slate-500 mt-0.5 truncate">📍 Gedung KBIHU • ⏰ 08:00 WIB</p>
-                </div>
-            </div>
-            <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-                <div class="bg-emerald-100 text-emerald-800 font-bold p-2 rounded-lg text-center min-w-[48px] shrink-0">
-                    <span class="block text-[10px] uppercase">AGU</span>
-                    <span class="text-base sm:text-lg leading-none">26</span>
-                </div>
-                <div class="min-w-0">
-                    <h3 class="text-xs sm:text-sm font-semibold text-slate-800 truncate">Praktik Lapangan Peragaan Ihram</h3>
-                    <p class="text-[11px] text-slate-500 mt-0.5 truncate">📍 Alun-Alun Magetan • ⏰ 06:30 WIB</p>
-                </div>
-            </div>
-        `;
     }
 }
 
@@ -272,7 +306,7 @@ function loadLocalStorage() {
     if (data) {
         try { DB = JSON.parse(data); } catch(e){}
     }
-    document.getElementById('cfg-script-url').value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycbyIDO6dzGuQBCVhPvS2BFYMA8v_5fsl-8nWn5kt85QWgWoCkRUW00GZB72LepmB6LdR/exec';
+    document.getElementById('cfg-script-url').value = DB.Setting.script_url || '';
     document.getElementById('cfg-nama-kbihu').value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
     document.getElementById('cfg-tahun').value = DB.Setting.tahun || '1448 H / 2027 M';
     document.getElementById('cfg-alamat').value = DB.Setting.alamat || '';
@@ -387,30 +421,53 @@ function renderJamaah() {
     tbody.innerHTML = '';
 
     if (DB.Jamaah.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada data jamaah.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-slate-400">Belum ada data jamaah.</td></tr>';
         return;
     }
 
     DB.Jamaah.forEach(j => {
-        // Memastikan pengambilan properti tepat meskipun ada perbedaan di Google Sheets
         const nik = j.nik || '-';
-        const noPorsi = j.no_porsi || j.porsi || '-';
+        const noPorsi = j.no_porsi || '-';
         const nama = j.nama || '-';
+        const namaAyah = j.nama_ayah || '-';
         const jk = j.jk || 'L';
+        const ttl = (j.tempat_lahir ? j.tempat_lahir + ', ' : '') + (j.tgl_lahir || '-');
+        const usia = j.usia || '-';
         const alamat = j.alamat || '-';
+        const desa = j.desa || '-';
+        const kecamatan = j.kecamatan || '-';
         const wa = j.wa || '-';
+        const hpKel = j.hp_keluarga || '-';
+        const riwayatSakit = j.riwayat_sakit || '-';
+        const pengalamanHaji = j.pengalaman_haji || 'Belum Pernah';
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
         tr.innerHTML = `
-            <td class="p-3 sm:p-4 font-semibold text-slate-700">${nik}</td>
             <td class="p-3 sm:p-4 font-mono text-emerald-700 font-bold">${noPorsi}</td>
-            <td class="p-3 sm:p-4 font-medium text-slate-800">${nama}</td>
-            <td class="p-3 sm:p-4"><span class="px-2 py-1 rounded text-[10px] sm:text-xs font-semibold ${jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${jk==='L'?'Laki-laki':'Perempuan'}</span></td>
-            <td class="p-3 sm:p-4">${alamat}</td>
-            <td class="p-3 sm:p-4 text-emerald-600 font-medium"><a href="https://wa.me/${wa}" target="_blank">📱 ${wa}</a></td>
-            <td class="p-3 sm:p-4 text-center">
-                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2.5 py-1 rounded-md">Hapus</button>
+            <td class="p-3 sm:p-4 font-bold text-slate-800">
+                ${nama}<br>
+                <span class="text-[10px] text-slate-400 font-normal">NIK: ${nik}</span>
+            </td>
+            <td class="p-3 sm:p-4 text-slate-700">${namaAyah}</td>
+            <td class="p-3 sm:p-4"><span class="px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold ${jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${jk}</span></td>
+            <td class="p-3 sm:p-4">
+                <span class="text-slate-700">${ttl}</span><br>
+                <span class="text-[10px] font-bold text-emerald-600">${usia}</span>
+            </td>
+            <td class="p-3 sm:p-4">
+                <span class="text-slate-800">${alamat}</span><br>
+                <span class="text-[10px] text-slate-400">Ds. ${desa}, Kec. ${kecamatan}</span>
+            </td>
+            <td class="p-3 sm:p-4">
+                <a href="https://wa.me/${wa}" target="_blank" class="text-emerald-600 font-medium block">📱 HP: ${wa}</a>
+                <span class="text-[10px] text-slate-400">Kel: ${hpKel}</span>
+            </td>
+            <td class="p-3 sm:p-4 text-xs ${riwayatSakit!=='-'?'text-amber-700 font-semibold':''}">${riwayatSakit}</td>
+            <td class="p-3 sm:p-4 text-xs"><span class="px-2 py-0.5 rounded ${pengalamanHaji==='Sudah Pernah'?'bg-emerald-100 text-emerald-800':'bg-slate-100 text-slate-600'}">${pengalamanHaji}</span></td>
+            <td class="p-3 sm:p-4 text-center space-x-1">
+                <button type="button" onclick="openModalJamaah('${nik}')" class="text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md">Edit</button>
+                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2 py-1 rounded-md">Hapus</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -578,9 +635,18 @@ async function submitJamaah(e) {
         nik: document.getElementById('j-nik').value,
         no_porsi: document.getElementById('j-porsi').value || '-',
         nama: document.getElementById('j-nama').value,
+        nama_ayah: document.getElementById('j-nama-ayah').value || '-',
         jk: document.getElementById('j-jk').value,
+        tempat_lahir: document.getElementById('j-tempat-lahir').value || '-',
+        tgl_lahir: document.getElementById('j-tgl-lahir').value || '',
+        usia: document.getElementById('j-usia').value || '-',
         alamat: document.getElementById('j-alamat').value,
+        desa: document.getElementById('j-desa').value || '-',
+        kecamatan: document.getElementById('j-kecamatan').value || '-',
         wa: document.getElementById('j-wa').value,
+        hp_keluarga: document.getElementById('j-hp-keluarga').value || '-',
+        riwayat_sakit: document.getElementById('j-riwayat-sakit').value || '-',
+        pengalaman_haji: document.getElementById('j-pengalaman-haji').value || 'Belum Pernah',
         created_at: new Date().toISOString()
     };
 
@@ -591,7 +657,6 @@ async function submitJamaah(e) {
     saveLocalStorage();
     renderJamaah();
     closeModal('modal-jamaah');
-    document.getElementById('form-jamaah').reset();
 
     Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     await apiCall('SAVE_JAMAAH', payload);
@@ -749,9 +814,18 @@ function importJamaahExcel(e) {
                         nik: String(row.nik),
                         no_porsi: String(row.no_porsi || '-'),
                         nama: String(row.nama),
+                        nama_ayah: String(row.nama_ayah || '-'),
                         jk: row.jk || 'L',
+                        tempat_lahir: row.tempat_lahir || '-',
+                        tgl_lahir: row.tgl_lahir || '',
+                        usia: row.usia || '-',
                         alamat: row.alamat || '-',
+                        desa: row.desa || '-',
+                        kecamatan: row.kecamatan || '-',
                         wa: String(row.wa || ''),
+                        hp_keluarga: String(row.hp_keluarga || '-'),
+                        riwayat_sakit: row.riwayat_sakit || '-',
+                        pengalaman_haji: row.pengalaman_haji || 'Belum Pernah',
                         created_at: new Date().toISOString()
                     };
                     const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
