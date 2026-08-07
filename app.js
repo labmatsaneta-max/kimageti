@@ -24,7 +24,7 @@ let DB = {
     Pembayaran: [],
     Jadwal: [],
     Setting: {
-        script_url: 'https://script.google.com/macros/s/AKfycbyMrTwfEsYCfHvn3lld1YdiT1CLCduM3la8Yw-gePuFoUAlAaimmxn_Avmj00NkL6w/exec',
+        script_url: '',
         admin_pass: 'admin123',
         nama_kbihu: 'KBIHU KI MAGETI',
         tahun: '1448 H / 2027 M',
@@ -90,15 +90,18 @@ function hitungsUsiaOtomatis() {
     inputUsia.value = age > 0 ? `${age} Tahun` : '0 Tahun';
 }
 
+// MEMBUKA MODAL EDIT / TAMBAH JAMAAH (SISTEM PRE-FILL LENGKAP)
 function openModalJamaah(nik = null) {
     const form = document.getElementById('form-jamaah');
     form.reset();
     document.getElementById('j-usia').value = '';
+    document.getElementById('j-edit-original-nik').value = '';
 
     if (nik) {
         const j = DB.Jamaah.find(x => String(x.nik) === String(nik));
         if (j) {
             document.getElementById('modal-jamaah-title').innerText = 'Edit Data Jamaah';
+            document.getElementById('j-edit-original-nik').value = j.nik || '';
             document.getElementById('j-nik').value = j.nik || '';
             document.getElementById('j-porsi').value = j.no_porsi || '';
             document.getElementById('j-nama').value = j.nama || '';
@@ -122,6 +125,34 @@ function openModalJamaah(nik = null) {
     }
 
     openModal('modal-jamaah');
+}
+
+// FITUR UNDUH TEMPLATE EXCEL UNTUK IMPORT JAMAAH
+function downloadExcelTemplate() {
+    const templateData = [
+        {
+            nik: "3520123456780001",
+            no_porsi: "1300123456",
+            nama: "Ahmad Mujtaba",
+            nama_ayah: "Hasan Bisri",
+            jk: "L",
+            tempat_lahir: "Magetan",
+            tgl_lahir: "1980-05-12",
+            usia: "46 Tahun",
+            alamat: "Jl. Pemuda No. 12 RT 02 RW 01",
+            desa: "Selosari",
+            kecamatan: "Magetan",
+            wa: "6281234567890",
+            hp_keluarga: "6281987654321",
+            riwayat_sakit: "Hipertensi",
+            pengalaman_haji: "Belum Pernah"
+        }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Jamaah");
+    XLSX.writeFile(wb, "Template_Import_Jamaah_KBIHU.xlsx");
 }
 
 async function fetchPublicJadwal() {
@@ -467,7 +498,7 @@ function renderJamaah() {
             <td class="p-3 sm:p-4 text-xs"><span class="px-2 py-0.5 rounded ${pengalamanHaji==='Sudah Pernah'?'bg-emerald-100 text-emerald-800':'bg-slate-100 text-slate-600'}">${pengalamanHaji}</span></td>
             <td class="p-3 sm:p-4 text-center space-x-1">
                 <button type="button" onclick="openModalJamaah('${nik}')" class="text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md">Edit</button>
-                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2 py-1 rounded-md">Hapus</button>
+                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2.5 py-1 rounded-md">Hapus</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -631,6 +662,8 @@ function renderJadwal() {
 
 async function submitJamaah(e) {
     e.preventDefault();
+    const originalNik = document.getElementById('j-edit-original-nik').value;
+    
     const payload = {
         nik: document.getElementById('j-nik').value,
         no_porsi: document.getElementById('j-porsi').value || '-',
@@ -650,6 +683,11 @@ async function submitJamaah(e) {
         created_at: new Date().toISOString()
     };
 
+    // Jika NIK diedit, bersihkan data lama dari memori lokal
+    if (originalNik && originalNik !== payload.nik) {
+        DB.Jamaah = DB.Jamaah.filter(x => x.nik !== originalNik);
+    }
+
     const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
     if (idx >= 0) DB.Jamaah[idx] = payload;
     else DB.Jamaah.push(payload);
@@ -660,7 +698,7 @@ async function submitJamaah(e) {
 
     Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     await apiCall('SAVE_JAMAAH', payload);
-    Swal.fire('Tersimpan', 'Data jamaah diperbarui.', 'success');
+    Swal.fire('Tersimpan', 'Data jamaah berhasil diperbarui.', 'success');
 }
 
 async function deleteJamaah(nik) {
