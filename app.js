@@ -41,12 +41,10 @@ function formatDateWIB(dateStr) {
     try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) {
-            // Jika format string tanggal manual (misal "2026-08-15")
             const parts = dateStr.split('T')[0].split('-');
             if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
             return dateStr;
         }
-        // Format standar WIB (DD-MM-YYYY)
         return new Intl.DateTimeFormat('id-ID', {
             timeZone: 'Asia/Jakarta',
             day: '2-digit',
@@ -58,7 +56,6 @@ function formatDateWIB(dateStr) {
     }
 }
 
-// Format hanya Tanggal Angka (DD) untuk Kartu Jadwal
 function formatDayNumberWIB(dateStr) {
     if (!dateStr || dateStr === '-') return '•';
     try {
@@ -109,7 +106,6 @@ function setLoginRole(role) {
     }
 }
 
-// Cek kelengkapan berkas
 function getBerkasKurangFromObj(berkasObj) {
     if (!berkasObj) return ['KTP', 'KK', 'SPPH', 'Paspor', 'Vaksin'];
 
@@ -140,7 +136,6 @@ function searchJamaahPublic() {
     resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2 font-medium animate-pulse">🔎 Mencari data jamaah...</div>';
 
     publicSearchTimer = setTimeout(async () => {
-        // Panggil backend via Apps Script
         const res = await apiCall('SEARCH_JAMAAH_PUBLIC', { query });
         resultsContainer.innerHTML = '';
 
@@ -235,7 +230,19 @@ function searchJamaahAdminDash() {
     });
 }
 
-// Hitung Otomatis Usia saat tanggal lahir diisi
+// 3. FITUR PENCARIAN & FILTER DI MENU TAB JAMAAH (ADMIN)
+function filterJamaahTable() {
+    const input = document.getElementById('tab-jamaah-search-input');
+    const filter = input ? input.value.trim().toLowerCase() : '';
+    renderJamaah(filter);
+}
+
+function clearFilterJamaah() {
+    const input = document.getElementById('tab-jamaah-search-input');
+    if (input) input.value = '';
+    renderJamaah();
+}
+
 function hitungsUsiaOtomatis() {
     const tglLahirInput = document.getElementById('j-tgl-lahir').value;
     const inputUsia = document.getElementById('j-usia');
@@ -294,7 +301,6 @@ function openModalJamaah(nik = null) {
     openModal('modal-jamaah');
 }
 
-// UNDUH TEMPLATE EXCEL IMPORT JAMAAH
 function downloadExcelTemplate() {
     const templateData = [
         {
@@ -322,7 +328,6 @@ function downloadExcelTemplate() {
     XLSX.writeFile(wb, "Template_Import_Jamaah_KBIHU.xlsx");
 }
 
-// PROSES UPLOAD & IMPORT EXCEL JAMAAH
 function importJamaahExcel(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -702,7 +707,8 @@ function renderDashboard() {
     });
 }
 
-function renderJamaah() {
+// RENDER TABEL JAMAAH DENGAN DUKUNGAN FILTER PENCARIAN CEPAT
+function renderJamaah(filterKeyword = '') {
     const tbody = document.getElementById('table-jamaah-body');
     tbody.innerHTML = '';
 
@@ -711,7 +717,24 @@ function renderJamaah() {
         return;
     }
 
-    DB.Jamaah.forEach(j => {
+    let list = DB.Jamaah;
+    if (filterKeyword) {
+        const q = filterKeyword.toLowerCase();
+        list = list.filter(j => {
+            const nama = (j.nama || '').toLowerCase();
+            const porsi = (j.no_porsi || '').toLowerCase();
+            const wa = (j.wa || '').toLowerCase();
+            const nik = (j.nik || '').toLowerCase();
+            return nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q);
+        });
+    }
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-rose-500 font-semibold">Jamaah tidak ditemukan dengan kata kunci tersebut.</td></tr>';
+        return;
+    }
+
+    list.forEach(j => {
         const nik = j.nik || '-';
         const displayNik = (String(nik).startsWith('TEMP-')) ? 'Belum Ada NIK' : nik;
         const noPorsi = j.no_porsi || '-';
@@ -753,8 +776,8 @@ function renderJamaah() {
             <td class="p-3 sm:p-4 text-xs ${riwayatSakit!=='-'?'text-amber-700 font-semibold':''}">${riwayatSakit}</td>
             <td class="p-3 sm:p-4 text-xs"><span class="px-2 py-0.5 rounded ${pengalamanHaji==='Sudah Pernah'?'bg-emerald-100 text-emerald-800':'bg-slate-100 text-slate-600'}">${pengalamanHaji}</span></td>
             <td class="p-3 sm:p-4 text-center space-x-1">
-                <button type="button" onclick="openModalJamaah('${nik}')" class="text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md">Edit</button>
-                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2.5 py-1 rounded-md">Hapus</button>
+                <button type="button" onclick="openModalJamaah('${nik}')" class="text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">✏️ Edit Cepat</button>
+                <button type="button" onclick="deleteJamaah('${nik}')" class="text-rose-600 hover:text-rose-800 font-semibold text-xs bg-rose-50 px-2 py-1 rounded-md">Hapus</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -1014,7 +1037,6 @@ async function submitTransaksi(e) {
     const kategori = document.getElementById('t-kategori').value;
     const jenis = kategori === 'Pengeluaran' ? 'Keluar' : 'Masuk';
     
-    // Simpan tanggal berformat WIB YYYY-MM-DD
     const today = new Date();
     const wibFormattedDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta' }).format(today);
 
