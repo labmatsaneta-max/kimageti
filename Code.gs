@@ -1,10 +1,10 @@
 /**
- * BACKEND KBIHU KI MAGETI (v2.4 Serverless API - Identitas Jamaah Lengkap)
+ * BACKEND KBIHU KI MAGETI (v2.5 - Login Fleksibel & NIK Opsional)
  * Engine: Google Apps Script + Google Sheets
  */
 
 function doGet(e) {
-  return ContentService.createTextOutput("KBIHU KI Mageti API v2.4 Running...")
+  return ContentService.createTextOutput("KBIHU KI Mageti API v2.5 Running...")
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
@@ -38,7 +38,7 @@ function doPost(e) {
         result = saveData('Jamaah', payload, ['nik']);
         break;
       case 'DELETE_JAMAAH':
-        result = deleteData('Jamaah', payload.nik, 0); // nik berada pada kolom pertama (index 0)
+        result = deleteData('Jamaah', payload.nik, 0);
         break;
       case 'SAVE_BERKAS':
         result = saveData('Berkas', payload, ['nik']);
@@ -63,7 +63,7 @@ function doPost(e) {
 
   } catch (error) {
     return respondJSON({ status: 'error', message: error.toString() });
-  } fontally {
+  } finally {
     lock.releaseLock();
   }
 }
@@ -105,7 +105,6 @@ function initSheets() {
         sheet.appendRow(['tempat_ttd', 'Magetan']);
       }
     } else if (name === 'Jamaah') {
-      // Perbarui header sheet Jamaah jika belum sesuai
       sheet.getRange(1, 1, 1, jamaahHeaders.length).setValues([jamaahHeaders]);
     }
   }
@@ -143,14 +142,20 @@ function handleLogin(payload) {
       const wa = String(row[waIdx]);
       const porsi = porsiIdx !== -1 ? String(row[porsiIdx]) : '';
 
-      if ((username === nik || username === wa || username === porsi) && (password === nik || password === wa)) {
+      const inputUser = String(username).trim();
+      const inputPass = String(password).trim();
+
+      const matchUser = (inputUser === nik || inputUser === wa || (porsi && inputUser === porsi));
+      const matchPass = (inputPass === nik || inputPass === wa || (porsi && inputPass === porsi));
+
+      if (matchUser && matchPass) {
         return {
           role: 'jamaah',
           user: { nik: nik, no_porsi: porsi, nama: row[namaIdx], wa: wa }
         };
       }
     }
-    throw new Error('NIK / No. WA / No. Porsi tidak ditemukan!');
+    throw new Error('No. Porsi / No. WA / NIK tidak ditemukan!');
   }
 }
 
