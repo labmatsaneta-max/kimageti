@@ -90,19 +90,19 @@ function setLoginRole(role) {
     const inpPass = document.getElementById('login-password');
 
     if (role === 'jamaah') {
-        btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
-        btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
-        lblUser.innerText = 'NO. PORSI / NO. WA / NIK';
-        lblPass.innerText = 'PASSWORD (NO. PORSI / NO. WA / NIK)';
-        inpUser.placeholder = 'Masukkan No. Porsi / WA / NIK';
-        inpPass.placeholder = 'Masukkan No. Porsi / WA / NIK';
+        if(btnJamaah) btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
+        if(btnAdmin) btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
+        if(lblUser) lblUser.innerText = 'NO. PORSI / NO. WA / NIK';
+        if(lblPass) lblPass.innerText = 'PASSWORD (NO. PORSI / NO. WA / NIK)';
+        if(inpUser) inpUser.placeholder = 'Masukkan No. Porsi / WA / NIK';
+        if(inpPass) inpPass.placeholder = 'Masukkan No. Porsi / WA / NIK';
     } else {
-        btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
-        btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
-        lblUser.innerText = 'USERNAME ADMIN';
-        lblPass.innerText = 'PASSWORD ADMIN';
-        inpUser.placeholder = 'admin';
-        inpPass.placeholder = 'Password admin';
+        if(btnAdmin) btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
+        if(btnJamaah) btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
+        if(lblUser) lblUser.innerText = 'USERNAME ADMIN';
+        if(lblPass) lblPass.innerText = 'PASSWORD ADMIN';
+        if(inpUser) inpUser.placeholder = 'admin';
+        if(inpPass) inpPass.placeholder = 'Password admin';
     }
 }
 
@@ -123,8 +123,12 @@ function getBerkasKurangFromObj(berkasObj) {
 let publicSearchTimer = null;
 function searchJamaahPublic() {
     clearTimeout(publicSearchTimer);
-    const query = document.getElementById('public-search-input').value.trim();
+    const queryEl = document.getElementById('public-search-input');
     const resultsContainer = document.getElementById('public-search-results');
+
+    if (!queryEl || !resultsContainer) return;
+
+    const query = queryEl.value.trim();
 
     if (query.length < 2) {
         resultsContainer.classList.add('hidden');
@@ -152,16 +156,16 @@ function searchJamaahPublic() {
                 div.innerHTML = `
                     <div class="flex justify-between items-start gap-2">
                         <div>
-                            <h4 class="font-extrabold text-emerald-800 text-sm">${j.nama}</h4>
-                            <p class="text-[10px] text-slate-500">Porsi: <span class="font-mono font-bold text-slate-700">${j.no_porsi || '-'}</span> | NIK: ${j.nik && !String(j.nik).startsWith('TEMP-') ? j.nik : '-'}</p>
+                            <h4 class="font-extrabold text-emerald-800 text-sm">${j.nama || j.NAMA}</h4>
+                            <p class="text-[10px] text-slate-500">Porsi: <span class="font-mono font-bold text-slate-700">${j.no_porsi || j.NO_PORSI || '-'}</span> | NIK: ${j.nik && !String(j.nik).startsWith('TEMP-') ? j.nik : '-'}</p>
                         </div>
                         ${berkasHtml}
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-[11px] text-slate-600 border-t border-slate-100">
-                        <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
-                        <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
-                        <div><b>No. HP Jamaah:</b> 📱 ${j.wa || '-'}</div>
-                        <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
+                        <div><b>Nama Ayah:</b> ${j.nama_ayah || j.NAMA_AYAH || '-'}</div>
+                        <div><b>Alamat:</b> ${j.alamat || j.ALAMAT || '-'} (Ds. ${j.desa || j.DESA || '-'}, Kec. ${j.kecamatan || j.KECAMATAN || '-'})</div>
+                        <div><b>No. HP Jamaah:</b> 📱 ${j.wa || j.WA || '-'}</div>
+                        <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || j.HP_KELUARGA || '-'}</div>
                     </div>
                 `;
                 resultsContainer.appendChild(div);
@@ -174,8 +178,12 @@ function searchJamaahPublic() {
 
 // 2. FITUR PENCARIAN ADMIN DASHBOARD UTAMA
 function searchJamaahAdminDash() {
-    const query = document.getElementById('admin-dash-search').value.trim().toLowerCase();
+    const inputEl = document.getElementById('admin-dash-search');
     const resultsContainer = document.getElementById('admin-dash-search-results');
+
+    if (!inputEl || !resultsContainer) return;
+
+    const query = inputEl.value.trim().toLowerCase();
 
     if (query.length < 1) {
         resultsContainer.classList.add('hidden');
@@ -184,10 +192,10 @@ function searchJamaahAdminDash() {
     }
 
     const matched = DB.Jamaah.filter(j => {
-        const nama = (j.nama || '').toLowerCase();
-        const porsi = (j.no_porsi || '').toLowerCase();
-        const wa = (j.wa || '').toLowerCase();
-        const nik = (j.nik || '').toLowerCase();
+        const nama = String(j.nama || j.NAMA || '').toLowerCase();
+        const porsi = String(j.no_porsi || j.NO_PORSI || '').toLowerCase();
+        const wa = String(j.wa || j.WA || '').toLowerCase();
+        const nik = String(j.nik || j.NIK || '').toLowerCase();
         return nama.includes(query) || porsi.includes(query) || wa.includes(query) || nik.includes(query);
     });
 
@@ -200,7 +208,8 @@ function searchJamaahAdminDash() {
     }
 
     matched.slice(0, 5).forEach(j => {
-        const berkasObj = DB.Berkas.find(b => String(b.nik) === String(j.nik));
+        const jNik = j.nik || j.NIK;
+        const berkasObj = DB.Berkas.find(b => String(b.nik) === String(jNik));
         const berkasKurang = getBerkasKurangFromObj(berkasObj);
         const berkasBadge = berkasKurang.length > 0 
             ? `<span class="bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded text-[10px] border border-rose-200">Berkas Kurang: ${berkasKurang.join(', ')}</span>`
@@ -211,26 +220,26 @@ function searchJamaahAdminDash() {
         div.innerHTML = `
             <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                    <span class="font-mono font-bold text-emerald-700">Porsi: ${j.no_porsi || '-'}</span>
-                    <h4 class="font-bold text-slate-800 text-sm leading-tight">${j.nama}</h4>
+                    <span class="font-mono font-bold text-emerald-700">Porsi: ${j.no_porsi || j.NO_PORSI || '-'}</span>
+                    <h4 class="font-bold text-slate-800 text-sm leading-tight">${j.nama || j.NAMA}</h4>
                 </div>
                 ${berkasBadge}
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 text-slate-600 border-t border-slate-200/60">
-                <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
-                <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
-                <div><b>No. HP Jamaah:</b> <a href="https://wa.me/${j.wa}" target="_blank" class="text-emerald-600 font-medium">📱 ${j.wa || '-'}</a></div>
-                <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
+                <div><b>Nama Ayah:</b> ${j.nama_ayah || j.NAMA_AYAH || '-'}</div>
+                <div><b>Alamat:</b> ${j.alamat || j.ALAMAT || '-'} (Ds. ${j.desa || j.DESA || '-'}, Kec. ${j.kecamatan || j.KECAMATAN || '-'})</div>
+                <div><b>No. HP Jamaah:</b> <a href="https://wa.me/${j.wa || j.WA}" target="_blank" class="text-emerald-600 font-medium">📱 ${j.wa || j.WA || '-'}</a></div>
+                <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || j.HP_KELUARGA || '-'}</div>
             </div>
             <div class="pt-2 flex justify-end">
-                <button type="button" onclick="openModalJamaah('${j.nik}')" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg font-semibold hover:bg-blue-700">Edit Data Jamaah Ini</button>
+                <button type="button" onclick="openModalJamaah('${jNik}')" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg font-semibold hover:bg-blue-700">Edit Data Jamaah Ini</button>
             </div>
         `;
         resultsContainer.appendChild(div);
     });
 }
 
-// 3. FITUR FILTER/PENCARIAN LANGSUNG PADA TABEL JAMAAH (TAB DATA JAMAAH)
+// 3. FITUR PENCARIAN & FILTER REAL-TIME PADA MENU TAB JAMAAH (ADMIN)
 function filterJamaahTable() {
     const input = document.getElementById('tab-jamaah-search-input');
     const filterKeyword = input ? input.value.trim().toLowerCase() : '';
@@ -267,32 +276,35 @@ function hitungsUsiaOtomatis() {
 
 function openModalJamaah(nik = null) {
     const form = document.getElementById('form-jamaah');
+    if (!form) return;
     form.reset();
+
     document.getElementById('j-usia').value = '';
     document.getElementById('j-edit-original-nik').value = '';
 
     if (nik) {
-        const j = DB.Jamaah.find(x => String(x.nik) === String(nik));
+        const j = DB.Jamaah.find(x => String(x.nik || x.NIK) === String(nik));
         if (j) {
+            const jNik = j.nik || j.NIK;
             document.getElementById('modal-jamaah-title').innerText = 'Edit Data Jamaah';
-            document.getElementById('j-edit-original-nik').value = j.nik || '';
-            document.getElementById('j-nik').value = (j.nik && !String(j.nik).startsWith('TEMP-')) ? j.nik : '';
-            document.getElementById('j-porsi').value = j.no_porsi || '';
-            document.getElementById('j-nama').value = j.nama || '';
-            document.getElementById('j-nama-ayah').value = j.nama_ayah || '';
-            document.getElementById('j-jk').value = j.jk || 'L';
-            document.getElementById('j-tempat-lahir').value = j.tempat_lahir || '';
-            document.getElementById('j-tgl-lahir').value = j.tgl_lahir || '';
-            document.getElementById('j-usia').value = j.usia || '';
-            document.getElementById('j-desa').value = j.desa || '';
-            document.getElementById('j-kecamatan').value = j.kecamatan || '';
-            document.getElementById('j-alamat').value = j.alamat || '';
-            document.getElementById('j-wa').value = j.wa || '';
-            document.getElementById('j-hp-keluarga').value = j.hp_keluarga || '';
-            document.getElementById('j-riwayat-sakit').value = j.riwayat_sakit || '';
-            document.getElementById('j-pengalaman-haji').value = j.pengalaman_haji || 'Belum Pernah';
+            document.getElementById('j-edit-original-nik').value = jNik || '';
+            document.getElementById('j-nik').value = (jNik && !String(jNik).startsWith('TEMP-')) ? jNik : '';
+            document.getElementById('j-porsi').value = j.no_porsi || j.NO_PORSI || '';
+            document.getElementById('j-nama').value = j.nama || j.NAMA || '';
+            document.getElementById('j-nama-ayah').value = j.nama_ayah || j.NAMA_AYAH || '';
+            document.getElementById('j-jk').value = j.jk || j.JK || 'L';
+            document.getElementById('j-tempat-lahir').value = j.tempat_lahir || j.TEMPAT_LAHIR || '';
+            document.getElementById('j-tgl-lahir').value = j.tgl_lahir || j.TGL_LAHIR || '';
+            document.getElementById('j-usia').value = j.usia || j.USIA || '';
+            document.getElementById('j-desa').value = j.desa || j.DESA || '';
+            document.getElementById('j-kecamatan').value = j.kecamatan || j.KECAMATAN || '';
+            document.getElementById('j-alamat').value = j.alamat || j.ALAMAT || '';
+            document.getElementById('j-wa').value = j.wa || j.WA || '';
+            document.getElementById('j-hp-keluarga').value = j.hp_keluarga || j.HP_KELUARGA || '';
+            document.getElementById('j-riwayat-sakit').value = j.riwayat_sakit || j.RIWAYAT_SAKIT || '';
+            document.getElementById('j-pengalaman-haji').value = j.pengalaman_haji || j.PENGALAMAN_HAJI || 'Belum Pernah';
 
-            if (j.tgl_lahir && !j.usia) hitungsUsiaOtomatis();
+            if ((j.tgl_lahir || j.TGL_LAHIR) && !(j.usia || j.USIA)) hitungsUsiaOtomatis();
         }
     } else {
         document.getElementById('modal-jamaah-title').innerText = 'Tambah Data Jamaah';
@@ -392,7 +404,7 @@ function importJamaahExcel(e) {
                         created_at: new Date().toISOString()
                     };
 
-                    const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
+                    const idx = DB.Jamaah.findIndex(x => String(x.nik || x.NIK) === String(payload.nik));
                     if (idx >= 0) DB.Jamaah[idx] = payload;
                     else DB.Jamaah.push(payload);
 
@@ -433,6 +445,7 @@ async function fetchPublicJadwal() {
 
 function renderPublicJadwalList(list) {
     const container = document.getElementById('public-jadwal-list');
+    if (!container) return;
     container.innerHTML = '';
 
     if (!list || list.length === 0) {
@@ -525,23 +538,34 @@ function showMainApp() {
     document.getElementById('view-login').classList.add('hidden');
     document.getElementById('view-app').classList.remove('hidden');
 
-    document.getElementById('user-badge-role').innerText = CurrentRole === 'admin' ? '🔑 Admin' : '👥 Jamaah';
+    const badgeRole = document.getElementById('user-badge-role');
+    if(badgeRole) badgeRole.innerText = CurrentRole === 'admin' ? '🔑 Admin' : '👥 Jamaah';
+
     document.querySelectorAll('.admin-only').forEach(el => {
         if (CurrentRole === 'admin') el.classList.remove('hidden');
         else el.classList.add('hidden');
     });
 
-    document.getElementById('app-header-title').innerText = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
-    document.getElementById('app-header-subtitle').innerText = 'Tahun ' + (DB.Setting.tahun || '1448 H / 2027 M');
+    const headerTitle = document.getElementById('app-header-title');
+    const headerSub = document.getElementById('app-header-subtitle');
+
+    if(headerTitle) headerTitle.innerText = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
+    if(headerSub) headerSub.innerText = 'Tahun ' + (DB.Setting.tahun || '1448 H / 2027 M');
 
     if (CurrentRole === 'jamaah') {
-        document.getElementById('dash-stat-kas-label').innerText = 'TOTAL PEMBAYARAN SAYA';
-        document.getElementById('nav-pembayaran-title').innerText = '💳 Riwayat Pembayaran';
-        document.getElementById('pembayaran-table-title').innerText = 'Catatan Pembayaran Anda';
+        const lblKas = document.getElementById('dash-stat-kas-label');
+        const navPemb = document.getElementById('nav-pembayaran-title');
+        const tblPemb = document.getElementById('pembayaran-table-title');
+        if(lblKas) lblKas.innerText = 'TOTAL PEMBAYARAN SAYA';
+        if(navPemb) navPemb.innerText = '💳 Riwayat Pembayaran';
+        if(tblPemb) tblPemb.innerText = 'Catatan Pembayaran Anda';
     } else {
-        document.getElementById('dash-stat-kas-label').innerText = 'TOTAL SISA KAS KBIHU';
-        document.getElementById('nav-pembayaran-title').innerText = '💰 Kas & Pembayaran';
-        document.getElementById('pembayaran-table-title').innerText = 'Riwayat Transaksi Keuangan';
+        const lblKas = document.getElementById('dash-stat-kas-label');
+        const navPemb = document.getElementById('nav-pembayaran-title');
+        const tblPemb = document.getElementById('pembayaran-table-title');
+        if(lblKas) lblKas.innerText = 'TOTAL SISA KAS KBIHU';
+        if(navPemb) navPemb.innerText = '💰 Kas & Pembayaran';
+        if(tblPemb) tblPemb.innerText = 'Riwayat Transaksi Keuangan';
     }
 
     renderAll();
@@ -597,14 +621,23 @@ function loadLocalStorage() {
     if (data) {
         try { DB = JSON.parse(data); } catch(e){}
     }
-    document.getElementById('cfg-script-url').value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycby4jn-8gqWEC6oMNX9L0qXzCkgXOOhB7wKNjMekuO6GWoRQuueYj6lqSsm6oDDObECs/exec';
-    document.getElementById('cfg-nama-kbihu').value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
-    document.getElementById('cfg-tahun').value = DB.Setting.tahun || '1448 H / 2027 M';
-    document.getElementById('cfg-alamat').value = DB.Setting.alamat || '';
-    document.getElementById('cfg-pimpinan').value = DB.Setting.pimpinan || '';
-    document.getElementById('cfg-bendahara').value = DB.Setting.bendahara || '';
-    document.getElementById('cfg-tempat-ttd').value = DB.Setting.tempat_ttd || 'Magetan';
-    document.getElementById('login-title-kbihu').innerText = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
+    const cfgUrl = document.getElementById('cfg-script-url');
+    const cfgNama = document.getElementById('cfg-nama-kbihu');
+    const cfgThn = document.getElementById('cfg-tahun');
+    const cfgAlamat = document.getElementById('cfg-alamat');
+    const cfgPim = document.getElementById('cfg-pimpinan');
+    const cfgBen = document.getElementById('cfg-bendahara');
+    const cfgTtd = document.getElementById('cfg-tempat-ttd');
+    const titleKbihu = document.getElementById('login-title-kbihu');
+
+    if(cfgUrl) cfgUrl.value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycby4jn-8gqWEC6oMNX9L0qXzCkgXOOhB7wKNjMekuO6GWoRQuueYj6lqSsm6oDDObECs/exec';
+    if(cfgNama) cfgNama.value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
+    if(cfgThn) cfgThn.value = DB.Setting.tahun || '1448 H / 2027 M';
+    if(cfgAlamat) cfgAlamat.value = DB.Setting.alamat || '';
+    if(cfgPim) cfgPim.value = DB.Setting.pimpinan || '';
+    if(cfgBen) cfgBen.value = DB.Setting.bendahara || '';
+    if(cfgTtd) cfgTtd.value = DB.Setting.tempat_ttd || 'Magetan';
+    if(titleKbihu) titleKbihu.innerText = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
 }
 
 function saveQuickUrl() {
@@ -643,7 +676,9 @@ function switchTab(tabId, btn) {
         el.classList.add('text-emerald-200');
     });
 
-    document.getElementById('tab-' + tabId).classList.remove('hidden');
+    const targetTab = document.getElementById('tab-' + tabId);
+    if(targetTab) targetTab.classList.remove('hidden');
+
     if(btn) {
         btn.classList.add('active', 'border-b-2', 'border-emerald-400', 'text-white');
         btn.classList.remove('text-emerald-200');
@@ -652,7 +687,7 @@ function switchTab(tabId, btn) {
 
 function renderAll() {
     renderDashboard();
-    filterJamaahTable(); // Memanggil rendering jamaah dengan mempertahankan filter kata kunci yang aktif
+    filterJamaahTable(); // Menjaga filter kata kunci yang sedang diketik
     renderBerkas();
     renderPembayaran();
     renderJadwal();
@@ -661,28 +696,36 @@ function renderAll() {
 function renderDashboard() {
     if (!CurrentUser) return;
 
-    document.getElementById('dash-welcome-user').innerText = `Selamat Datang, ${CurrentUser.nama}`;
-    document.getElementById('dash-stat-jamaah').innerText = `${DB.Jamaah.length} Jamaah`;
-    document.getElementById('dash-stat-jadwal').innerText = `${DB.Jadwal.length} Agenda`;
+    const welcomeUser = document.getElementById('dash-welcome-user');
+    const statJamaah = document.getElementById('dash-stat-jamaah');
+    const statJadwal = document.getElementById('dash-stat-jadwal');
+    const statKas = document.getElementById('dash-stat-kas');
+
+    if(welcomeUser) welcomeUser.innerText = `Selamat Datang, ${CurrentUser.nama}`;
+    if(statJamaah) statJamaah.innerText = `${DB.Jamaah.length} Jamaah`;
+    if(statJadwal) statJadwal.innerText = `${DB.Jadwal.length} Agenda`;
 
     if (CurrentRole === 'jamaah') {
         let totalBayarJamaah = 0;
         DB.Pembayaran.forEach(p => {
-            if (String(p.nik) === String(CurrentUser.nik) && p.jenis === 'Masuk') {
+            const pNik = p.nik || p.NIK;
+            const uNik = CurrentUser.nik || CurrentUser.NIK;
+            if (String(pNik) === String(uNik) && p.jenis === 'Masuk') {
                 totalBayarJamaah += parseFloat(p.nominal) || 0;
             }
         });
-        document.getElementById('dash-stat-kas').innerText = 'Rp ' + totalBayarJamaah.toLocaleString('id-ID');
+        if(statKas) statKas.innerText = 'Rp ' + totalBayarJamaah.toLocaleString('id-ID');
     } else {
         let mas = 0, kel = 0;
         DB.Pembayaran.forEach(p => {
             if (p.jenis === 'Masuk') mas += parseFloat(p.nominal) || 0;
             if (p.jenis === 'Keluar') kel += parseFloat(p.nominal) || 0;
         });
-        document.getElementById('dash-stat-kas').innerText = 'Rp ' + (mas - kel).toLocaleString('id-ID');
+        if(statKas) statKas.innerText = 'Rp ' + (mas - kel).toLocaleString('id-ID');
     }
 
     const container = document.getElementById('dash-jadwal-container');
+    if (!container) return;
     container.innerHTML = '';
 
     if (DB.Jadwal.length === 0) {
@@ -707,51 +750,57 @@ function renderDashboard() {
     });
 }
 
-// RENDER TABEL JAMAAH SECARA REALTIME DENGAN FILTER
+// RENDER TABEL JAMAAH (SERBA AMAN & PERSISI FITUR PENCARIAN)
 function renderJamaah(filterKeyword = '') {
     const tbody = document.getElementById('table-jamaah-body');
+    if (!tbody) return;
+
     tbody.innerHTML = '';
 
-    if (DB.Jamaah.length === 0) {
+    if (!DB.Jamaah || DB.Jamaah.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-slate-400">Belum ada data jamaah.</td></tr>';
         return;
     }
 
     let list = DB.Jamaah;
+
+    // Filter langsung
     if (filterKeyword) {
         const q = filterKeyword.toLowerCase();
         list = list.filter(j => {
-            const nama = (j.nama || '').toLowerCase();
-            const porsi = (j.no_porsi || '').toLowerCase();
-            const wa = (j.wa || '').toLowerCase();
-            const nik = (j.nik || '').toLowerCase();
-            const desa = (j.desa || '').toLowerCase();
-            const kec = (j.kecamatan || '').toLowerCase();
-            return nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q) || desa.includes(q) || kec.includes(q);
+            const nama = String(j.nama || j.NAMA || '').toLowerCase();
+            const porsi = String(j.no_porsi || j.NO_PORSI || '').toLowerCase();
+            const wa = String(j.wa || j.WA || '').toLowerCase();
+            const nik = String(j.nik || j.NIK || '').toLowerCase();
+            const ayah = String(j.nama_ayah || j.NAMA_AYAH || '').toLowerCase();
+            const desa = String(j.desa || j.DESA || '').toLowerCase();
+            const kec = String(j.kecamatan || j.KECAMATAN || '').toLowerCase();
+
+            return nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q) || ayah.includes(q) || desa.includes(q) || kec.includes(q);
         });
     }
 
     if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-rose-500 font-semibold">Data jamaah tidak ditemukan dengan kata kunci tersebut.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-rose-500 font-semibold bg-rose-50/50 py-6">⚠️ Data jamaah dengan kata kunci "' + filterKeyword + '" tidak ditemukan.</td></tr>';
         return;
     }
 
     list.forEach(j => {
-        const nik = j.nik || '-';
+        const nik = j.nik || j.NIK || '-';
         const displayNik = (String(nik).startsWith('TEMP-')) ? 'Belum Ada NIK' : nik;
-        const noPorsi = j.no_porsi || '-';
-        const nama = j.nama || '-';
-        const namaAyah = j.nama_ayah || '-';
-        const jk = j.jk || 'L';
-        const ttl = (j.tempat_lahir ? j.tempat_lahir + ', ' : '') + (formatDateWIB(j.tgl_lahir) || '-');
-        const usia = j.usia || '-';
-        const alamat = j.alamat || '-';
-        const desa = j.desa || '-';
-        const kecamatan = j.kecamatan || '-';
-        const wa = j.wa || '-';
-        const hpKel = j.hp_keluarga || '-';
-        const riwayatSakit = j.riwayat_sakit || '-';
-        const pengalamanHaji = j.pengalaman_haji || 'Belum Pernah';
+        const noPorsi = j.no_porsi || j.NO_PORSI || '-';
+        const nama = j.nama || j.NAMA || '-';
+        const namaAyah = j.nama_ayah || j.NAMA_AYAH || '-';
+        const jk = j.jk || j.JK || 'L';
+        const ttl = ((j.tempat_lahir || j.TEMPAT_LAHIR) ? (j.tempat_lahir || j.TEMPAT_LAHIR) + ', ' : '') + (formatDateWIB(j.tgl_lahir || j.TGL_LAHIR) || '-');
+        const usia = j.usia || j.USIA || '-';
+        const alamat = j.alamat || j.ALAMAT || '-';
+        const desa = j.desa || j.DESA || '-';
+        const kecamatan = j.kecamatan || j.KECAMATAN || '-';
+        const wa = j.wa || j.WA || '-';
+        const hpKel = j.hp_keluarga || j.HP_KELUARGA || '-';
+        const riwayatSakit = j.riwayat_sakit || j.RIWAYAT_SAKIT || '-';
+        const pengalamanHaji = j.pengalaman_haji || j.PENGALAMAN_HAJI || 'Belum Pernah';
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
@@ -788,11 +837,12 @@ function renderJamaah(filterKeyword = '') {
 
 function renderBerkas() {
     const tbody = document.getElementById('table-berkas-body');
+    if(!tbody) return;
     tbody.innerHTML = '';
 
     let list = DB.Jamaah;
     if (CurrentRole === 'jamaah' && CurrentUser) {
-        list = DB.Jamaah.filter(j => String(j.nik) === String(CurrentUser.nik));
+        list = DB.Jamaah.filter(j => String(j.nik || j.NIK) === String(CurrentUser.nik || CurrentUser.NIK));
     }
 
     if (list.length === 0) {
@@ -801,26 +851,27 @@ function renderBerkas() {
     }
 
     list.forEach(j => {
-        const b = DB.Berkas.find(item => String(item.nik) === String(j.nik)) || {
+        const jNik = j.nik || j.NIK;
+        const b = DB.Berkas.find(item => String(item.nik) === String(jNik)) || {
             ktp: false, kk: false, spph: false, paspor: false, vaksin: false
         };
 
-        const displayNik = (j.nik && !String(j.nik).startsWith('TEMP-')) ? j.nik : 'Belum ada NIK';
+        const displayNik = (jNik && !String(jNik).startsWith('TEMP-')) ? jNik : 'Belum ada NIK';
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 border-b border-slate-100';
         tr.innerHTML = `
             <td class="p-3 sm:p-4 font-semibold text-slate-800">
-                ${j.nama}<br>
-                <span class="text-xs text-slate-400 font-normal">NIK: ${displayNik} | Porsi: ${j.no_porsi || '-'}</span>
+                ${j.nama || j.NAMA}<br>
+                <span class="text-xs text-slate-400 font-normal">NIK: ${displayNik} | Porsi: ${j.no_porsi || j.NO_PORSI || '-'}</span>
             </td>
-            ${renderBerkasStatus(j.nik, 'ktp', b.ktp)}
-            ${renderBerkasStatus(j.nik, 'kk', b.kk)}
-            ${renderBerkasStatus(j.nik, 'spph', b.spph)}
-            ${renderBerkasStatus(j.nik, 'paspor', b.paspor)}
-            ${renderBerkasStatus(j.nik, 'vaksin', b.vaksin)}
+            ${renderBerkasStatus(jNik, 'ktp', b.ktp)}
+            ${renderBerkasStatus(jNik, 'kk', b.kk)}
+            ${renderBerkasStatus(jNik, 'spph', b.spph)}
+            ${renderBerkasStatus(jNik, 'paspor', b.paspor)}
+            ${renderBerkasStatus(jNik, 'vaksin', b.vaksin)}
             <td class="p-3 sm:p-4 text-center admin-only">
-                <button type="button" onclick="toggleAllBerkas('${j.nik}')" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100">Set Lengkap</button>
+                <button type="button" onclick="toggleAllBerkas('${jNik}')" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100">Set Lengkap</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -866,13 +917,14 @@ async function toggleAllBerkas(nik) {
 
 function renderPembayaran() {
     const tbody = document.getElementById('table-transaksi-body');
+    if(!tbody) return;
     tbody.innerHTML = '';
 
     let totalMasuk = 0, totalKeluar = 0;
 
     let list = DB.Pembayaran;
     if (CurrentRole === 'jamaah' && CurrentUser) {
-        list = DB.Pembayaran.filter(t => String(t.nik) === String(CurrentUser.nik));
+        list = DB.Pembayaran.filter(t => String(t.nik) === String(CurrentUser.nik || CurrentUser.NIK));
     }
 
     DB.Pembayaran.forEach(t => {
@@ -908,13 +960,18 @@ function renderPembayaran() {
         tbody.appendChild(tr);
     });
 
-    document.getElementById('dash-pemasukan').innerText = 'Rp ' + totalMasuk.toLocaleString('id-ID');
-    document.getElementById('dash-pengeluaran').innerText = 'Rp ' + totalKeluar.toLocaleString('id-ID');
-    document.getElementById('dash-sisa').innerText = 'Rp ' + (totalMasuk - totalKeluar).toLocaleString('id-ID');
+    const dMasuk = document.getElementById('dash-pemasukan');
+    const dKeluar = document.getElementById('dash-pengeluaran');
+    const dSisa = document.getElementById('dash-sisa');
+
+    if(dMasuk) dMasuk.innerText = 'Rp ' + totalMasuk.toLocaleString('id-ID');
+    if(dKeluar) dKeluar.innerText = 'Rp ' + totalKeluar.toLocaleString('id-ID');
+    if(dSisa) dSisa.innerText = 'Rp ' + (totalMasuk - totalKeluar).toLocaleString('id-ID');
 }
 
 function renderJadwal() {
     const container = document.getElementById('jadwal-cards-container');
+    if(!container) return;
     container.innerHTML = '';
 
     if (DB.Jadwal.length === 0) {
@@ -972,10 +1029,10 @@ async function submitJamaah(e) {
     };
 
     if (originalNik && originalNik !== payload.nik) {
-        DB.Jamaah = DB.Jamaah.filter(x => x.nik !== originalNik);
+        DB.Jamaah = DB.Jamaah.filter(x => String(x.nik || x.NIK) !== String(originalNik));
     }
 
-    const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
+    const idx = DB.Jamaah.findIndex(x => String(x.nik || x.NIK) === String(payload.nik));
     if (idx >= 0) DB.Jamaah[idx] = payload;
     else DB.Jamaah.push(payload);
 
@@ -997,7 +1054,7 @@ async function deleteJamaah(nik) {
         confirmButtonText: 'Hapus'
     }).then(async (result) => {
         if (result.isConfirmed) {
-            DB.Jamaah = DB.Jamaah.filter(x => x.nik !== nik);
+            DB.Jamaah = DB.Jamaah.filter(x => String(x.nik || x.NIK) !== String(nik));
             saveLocalStorage();
             filterJamaahTable();
             await apiCall('DELETE_JAMAAH', { nik });
@@ -1021,7 +1078,8 @@ function openModalBayar(kategori) {
         selectJamaah.setAttribute('required', 'required');
         selectJamaah.innerHTML = '<option value="">-- Pilih Jamaah --</option>';
         DB.Jamaah.forEach(j => {
-            selectJamaah.innerHTML += `<option value="${j.nik}">${j.nama} (Porsi: ${j.no_porsi || '-'})</option>`;
+            const jNik = j.nik || j.NIK;
+            selectJamaah.innerHTML += `<option value="${jNik}">${j.nama || j.NAMA} (Porsi: ${j.no_porsi || j.NO_PORSI || '-'})</option>`;
         });
     }
 
@@ -1030,8 +1088,8 @@ function openModalBayar(kategori) {
 
 function updateNamaJamaah() {
     const nik = document.getElementById('t-nik').value;
-    const jamaah = DB.Jamaah.find(j => j.nik === nik);
-    document.getElementById('t-nama').value = jamaah ? jamaah.nama : '';
+    const jamaah = DB.Jamaah.find(j => String(j.nik || j.NIK) === String(nik));
+    document.getElementById('t-nama').value = jamaah ? (jamaah.nama || jamaah.NAMA) : '';
 }
 
 async function submitTransaksi(e) {
@@ -1207,7 +1265,7 @@ function cetakLaporanKeuangan() {
 
     let list = DB.Pembayaran;
     if (CurrentRole === 'jamaah' && CurrentUser) {
-        list = DB.Pembayaran.filter(t => String(t.nik) === String(CurrentUser.nik));
+        list = DB.Pembayaran.filter(t => String(t.nik) === String(CurrentUser.nik || CurrentUser.NIK));
     }
 
     const tableData = list.map(t => [
