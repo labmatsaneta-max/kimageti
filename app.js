@@ -35,6 +35,48 @@ let DB = {
     }
 };
 
+// HELPER FORMATTER TANGGAL INDONESIA WIB (Asia/Jakarta / GMT+7)
+function formatDateWIB(dateStr) {
+    if (!dateStr || dateStr === '-') return '-';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) {
+            // Jika format string tanggal manual (misal "2026-08-15")
+            const parts = dateStr.split('T')[0].split('-');
+            if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            return dateStr;
+        }
+        // Format standar WIB (DD-MM-YYYY)
+        return new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        }).format(d).replace(/\//g, '-');
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+// Format hanya Tanggal Angka (DD) untuk Kartu Jadwal
+function formatDayNumberWIB(dateStr) {
+    if (!dateStr || dateStr === '-') return '•';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) {
+            const parts = dateStr.split('T')[0].split('-');
+            if (parts.length === 3) return parts[2];
+            return dateStr;
+        }
+        return new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit'
+        }).format(d);
+    } catch (e) {
+        return '•';
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     loadLocalStorage();
     checkAuthSession();
@@ -67,24 +109,25 @@ function setLoginRole(role) {
     }
 }
 
-// FUNGSI CEK BERKAS YANG BELUM LENGKAP
-function getBerkasKurangList(nik) {
-    const b = DB.Berkas.find(item => String(item.nik) === String(nik));
-    if (!b) return ['KTP', 'KK', 'SPPH', 'Paspor', 'Vaksin'];
+// Cek kelengkapan berkas
+function getBerkasKurangFromObj(berkasObj) {
+    if (!berkasObj) return ['KTP', 'KK', 'SPPH', 'Paspor', 'Vaksin'];
 
     const kurang = [];
-    if (b.ktp !== true && b.ktp !== 'true') kurang.push('KTP');
-    if (b.kk !== true && b.kk !== 'true') kurang.push('KK');
-    if (b.spph !== true && b.spph !== 'true') kurang.push('SPPH');
-    if (b.paspor !== true && b.paspor !== 'true') kurang.push('Paspor');
-    if (b.vaksin !== true && b.vaksin !== 'true') kurang.push('Vaksin');
+    if (berkasObj.ktp !== true && berkasObj.ktp !== 'true') kurang.push('KTP');
+    if (berkasObj.kk !== true && berkasObj.kk !== 'true') kurang.push('KK');
+    if (berkasObj.spph !== true && berkasObj.spph !== 'true') kurang.push('SPPH');
+    if (berkasObj.paspor !== true && berkasObj.paspor !== 'true') kurang.push('Paspor');
+    if (berkasObj.vaksin !== true && berkasObj.vaksin !== 'true') kurang.push('Vaksin');
 
     return kurang;
 }
 
-// 1. FITUR PENCARIAN PUBLIK (Halaman Login Depan)
+// 1. FITUR PENCARIAN PUBLIK REAL-TIME
+let publicSearchTimer = null;
 function searchJamaahPublic() {
-    const query = document.getElementById('public-search-input').value.trim().toLowerCase();
+    clearTimeout(publicSearchTimer);
+    const query = document.getElementById('public-search-input').value.trim();
     const resultsContainer = document.getElementById('public-search-results');
 
     if (query.length < 2) {
@@ -93,47 +136,45 @@ function searchJamaahPublic() {
         return;
     }
 
-    const matched = DB.Jamaah.filter(j => {
-        const nama = (j.nama || '').toLowerCase();
-        const porsi = (j.no_porsi || '').toLowerCase();
-        const wa = (j.wa || '').toLowerCase();
-        const nik = (j.nik || '').toLowerCase();
-        return nama.includes(query) || porsi.includes(query) || wa.includes(query) || nik.includes(query);
-    });
-
     resultsContainer.classList.remove('hidden');
-    resultsContainer.innerHTML = '';
+    resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2 font-medium animate-pulse">🔎 Mencari data jamaah...</div>';
 
-    if (matched.length === 0) {
-        resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2">Data jamaah tidak ditemukan.</div>';
-        return;
-    }
+    publicSearchTimer = setTimeout(async () => {
+        // Panggil backend via Apps Script
+        const res = await apiCall('SEARCH_JAMAAH_PUBLIC', { query });
+        resultsContainer.innerHTML = '';
 
-    matched.slice(0, 5).forEach(j => {
-        const berkasKurang = getBerkasKurangList(j.nik);
-        const berkasHtml = berkasKurang.length > 0 
-            ? `<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-300">Kurang: ${berkasKurang.join(', ')}</span>`
-            : `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">✓ Berkas Lengkap</span>`;
+        if (res && res.status === 'success' && res.data && res.data.length > 0) {
+            res.data.forEach(item => {
+                const j = item.jamaah;
+                const berkasKurang = getBerkasKurangFromObj(item.berkas);
+                const berkasHtml = berkasKurang.length > 0 
+                    ? `<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-300">Kurang: ${berkasKurang.join(', ')}</span>`
+                    : `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">✓ Berkas Lengkap</span>`;
 
-        const div = document.createElement('div');
-        div.className = 'bg-white text-slate-800 p-3 rounded-xl shadow-sm text-xs space-y-1';
-        div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div>
-                    <h4 class="font-extrabold text-emerald-800 text-sm">${j.nama}</h4>
-                    <p class="text-[10px] text-slate-500">Porsi: <span class="font-mono font-bold text-slate-700">${j.no_porsi || '-'}</span> | NIK: ${j.nik && !j.nik.startsWith('TEMP-') ? j.nik : '-'}</p>
-                </div>
-                ${berkasHtml}
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-[11px] text-slate-600 border-t border-slate-100">
-                <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
-                <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
-                <div><b>No. HP Jamaah:</b> 📱 ${j.wa || '-'}</div>
-                <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
-            </div>
-        `;
-        resultsContainer.appendChild(div);
-    });
+                const div = document.createElement('div');
+                div.className = 'bg-white text-slate-800 p-3 rounded-xl shadow-sm text-xs space-y-1';
+                div.innerHTML = `
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <h4 class="font-extrabold text-emerald-800 text-sm">${j.nama}</h4>
+                            <p class="text-[10px] text-slate-500">Porsi: <span class="font-mono font-bold text-slate-700">${j.no_porsi || '-'}</span> | NIK: ${j.nik && !String(j.nik).startsWith('TEMP-') ? j.nik : '-'}</p>
+                        </div>
+                        ${berkasHtml}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-[11px] text-slate-600 border-t border-slate-100">
+                        <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
+                        <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
+                        <div><b>No. HP Jamaah:</b> 📱 ${j.wa || '-'}</div>
+                        <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
+                    </div>
+                `;
+                resultsContainer.appendChild(div);
+            });
+        } else {
+            resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2">Data jamaah tidak ditemukan.</div>';
+        }
+    }, 400);
 }
 
 // 2. FITUR PENCARIAN ADMIN DASHBOARD
@@ -164,7 +205,8 @@ function searchJamaahAdminDash() {
     }
 
     matched.slice(0, 5).forEach(j => {
-        const berkasKurang = getBerkasKurangList(j.nik);
+        const berkasObj = DB.Berkas.find(b => String(b.nik) === String(j.nik));
+        const berkasKurang = getBerkasKurangFromObj(berkasObj);
         const berkasBadge = berkasKurang.length > 0 
             ? `<span class="bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded text-[10px] border border-rose-200">Berkas Kurang: ${berkasKurang.join(', ')}</span>`
             : `<span class="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-200">✓ Berkas Lengkap</span>`;
@@ -227,7 +269,7 @@ function openModalJamaah(nik = null) {
         if (j) {
             document.getElementById('modal-jamaah-title').innerText = 'Edit Data Jamaah';
             document.getElementById('j-edit-original-nik').value = j.nik || '';
-            document.getElementById('j-nik').value = (j.nik && !j.nik.startsWith('TEMP-')) ? j.nik : '';
+            document.getElementById('j-nik').value = (j.nik && !String(j.nik).startsWith('TEMP-')) ? j.nik : '';
             document.getElementById('j-porsi').value = j.no_porsi || '';
             document.getElementById('j-nama').value = j.nama || '';
             document.getElementById('j-nama-ayah').value = j.nama_ayah || '';
@@ -395,12 +437,13 @@ function renderPublicJadwalList(list) {
 
     const topJadwal = list.slice(0, 3);
     topJadwal.forEach(j => {
+        const dayNum = formatDayNumberWIB(j.tanggal);
         const div = document.createElement('div');
         div.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3';
         div.innerHTML = `
             <div class="bg-emerald-100 text-emerald-800 font-bold p-2 rounded-lg text-center min-w-[48px] shrink-0">
                 <span class="block text-[10px] uppercase">${j.hari || 'JDW'}</span>
-                <span class="text-xs font-extrabold leading-none">${j.tanggal ? j.tanggal.split('-')[2] || j.tanggal : '•'}</span>
+                <span class="text-xs font-extrabold leading-none">${dayNum}</span>
             </div>
             <div class="min-w-0">
                 <h3 class="text-xs sm:text-sm font-semibold text-slate-800 truncate">${j.materi}</h3>
@@ -648,7 +691,7 @@ function renderDashboard() {
         div.className = 'p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1';
         div.innerHTML = `
             <div class="flex justify-between items-center text-xs font-bold text-emerald-800">
-                <span>📅 ${j.hari}, ${j.tanggal}</span>
+                <span>📅 ${j.hari}, ${formatDateWIB(j.tanggal)}</span>
                 <span class="bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md text-[10px]">${j.jam}</span>
             </div>
             <h4 class="font-bold text-slate-800 text-sm sm:text-base mt-1">${j.materi}</h4>
@@ -670,12 +713,12 @@ function renderJamaah() {
 
     DB.Jamaah.forEach(j => {
         const nik = j.nik || '-';
-        const displayNik = (nik.startsWith('TEMP-')) ? 'Belum Ada NIK' : nik;
+        const displayNik = (String(nik).startsWith('TEMP-')) ? 'Belum Ada NIK' : nik;
         const noPorsi = j.no_porsi || '-';
         const nama = j.nama || '-';
         const namaAyah = j.nama_ayah || '-';
         const jk = j.jk || 'L';
-        const ttl = (j.tempat_lahir ? j.tempat_lahir + ', ' : '') + (j.tgl_lahir || '-');
+        const ttl = (j.tempat_lahir ? j.tempat_lahir + ', ' : '') + (formatDateWIB(j.tgl_lahir) || '-');
         const usia = j.usia || '-';
         const alamat = j.alamat || '-';
         const desa = j.desa || '-';
@@ -737,7 +780,7 @@ function renderBerkas() {
             ktp: false, kk: false, spph: false, paspor: false, vaksin: false
         };
 
-        const displayNik = (j.nik && !j.nik.startsWith('TEMP-')) ? j.nik : 'Belum ada NIK';
+        const displayNik = (j.nik && !String(j.nik).startsWith('TEMP-')) ? j.nik : 'Belum ada NIK';
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 border-b border-slate-100';
@@ -825,7 +868,7 @@ function renderPembayaran() {
         tr.innerHTML = `
             <td class="p-3 sm:p-4">
                 <span class="font-mono text-[11px] sm:text-xs font-semibold text-slate-500">${t.id_transaksi}</span>
-                <div class="text-[10px] sm:text-xs text-slate-400">${t.tanggal}</div>
+                <div class="text-[10px] sm:text-xs text-slate-400">${formatDateWIB(t.tanggal)}</div>
             </td>
             <td class="p-3 sm:p-4"><span class="px-2 py-0.5 rounded text-[10px] sm:text-xs font-semibold ${t.jenis==='Masuk'?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}">${t.kategori}</span></td>
             <td class="p-3 sm:p-4 font-medium text-slate-800">${t.nama || '-'}</td>
@@ -860,7 +903,7 @@ function renderJadwal() {
         card.innerHTML = `
             <div class="flex justify-between items-start border-b pb-2">
                 <div>
-                    <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">${j.hari}, ${j.tanggal}</span>
+                    <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">${j.hari}, ${formatDateWIB(j.tanggal)}</span>
                     <h4 class="text-base sm:text-lg font-bold text-slate-800 mt-0.5">${j.materi}</h4>
                 </div>
                 ${CurrentRole==='admin'? `<button type="button" onclick="deleteJadwal('${j.id_jadwal}')" class="text-rose-500 hover:text-rose-700 text-xs font-bold">Hapus</button>` : ''}
@@ -971,9 +1014,13 @@ async function submitTransaksi(e) {
     const kategori = document.getElementById('t-kategori').value;
     const jenis = kategori === 'Pengeluaran' ? 'Keluar' : 'Masuk';
     
+    // Simpan tanggal berformat WIB YYYY-MM-DD
+    const today = new Date();
+    const wibFormattedDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta' }).format(today);
+
     const payload = {
         id_transaksi: 'TRX-' + Date.now(),
-        tanggal: new Date().toLocaleDateString('id-ID'),
+        tanggal: wibFormattedDate,
         nik: document.getElementById('t-nik').value || '-',
         nama: document.getElementById('t-nama').value || 'Pengeluaran Kas',
         kategori: kategori,
@@ -1097,7 +1144,7 @@ async function cetakKuitansi(id_transaksi) {
 
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
     doc.text(`No. Transaksi : ${trx.id_transaksi}`, 15, 42);
-    doc.text(`Tgl Pembayaran: ${trx.tanggal}`, 130, 42);
+    doc.text(`Tgl Pembayaran: ${formatDateWIB(trx.tanggal)}`, 130, 42);
 
     doc.rect(15, 47, 180, 45);
     doc.text(`Telah Diterima Dari : ${trx.nama} (NIK: ${trx.nik})`, 20, 56);
@@ -1105,7 +1152,7 @@ async function cetakKuitansi(id_transaksi) {
     doc.text(`Untuk Pembayaran    : ${trx.kategori} - ${trx.keterangan}`, 20, 76);
 
     const ttdY = 100;
-    doc.text(`${DB.Setting.tempat_ttd}, ${trx.tanggal}`, 140, ttdY);
+    doc.text(`${DB.Setting.tempat_ttd}, ${formatDateWIB(trx.tanggal)}`, 140, ttdY);
     doc.text('Bendahara KBIHU,', 140, ttdY + 5);
 
     doc.addImage(stempelImage, 'PNG', 125, ttdY + 2, 30, 30);
@@ -1141,7 +1188,7 @@ function cetakLaporanKeuangan() {
 
     const tableData = list.map(t => [
         t.id_transaksi,
-        t.tanggal,
+        formatDateWIB(t.tanggal),
         t.kategori,
         t.nama,
         t.jenis,
@@ -1159,7 +1206,7 @@ function cetakLaporanKeuangan() {
 
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(0);
-    doc.text(`${DB.Setting.tempat_ttd}, ${new Date().toLocaleDateString('id-ID')}`, 130, finalY);
+    doc.text(`${DB.Setting.tempat_ttd}, ${formatDateWIB(new Date().toISOString())}`, 130, finalY);
     doc.text('Pimpinan KBIHU,', 130, finalY + 5);
     doc.text(`( ${DB.Setting.pimpinan} )`, 130, finalY + 25);
 
