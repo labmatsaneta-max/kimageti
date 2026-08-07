@@ -619,19 +619,8 @@ function saveLocalStorage() {
 function loadLocalStorage() {
     const data = localStorage.getItem('KBIHU_DB');
     if (data) {
-        try { 
-            const parsed = JSON.parse(data);
-            // Jika di Local Storage URL kosong, tetap utamakan URL bawaan kodingan
-            if (!parsed.Setting.script_url) {
-                parsed.Setting.script_url = DB.Setting.script_url;
-            }
-            DB = parsed;
-        } catch(e){}
+        try { DB = JSON.parse(data); } catch(e){}
     }
-    // Mengisi form pengaturan jika elemen tersedia
-    const cfgUrl = document.getElementById('cfg-script-url');
-    if (cfgUrl) cfgUrl.value = DB.Setting.script_url || '';
-}
     const cfgUrl = document.getElementById('cfg-script-url');
     const cfgNama = document.getElementById('cfg-nama-kbihu');
     const cfgThn = document.getElementById('cfg-tahun');
@@ -641,7 +630,7 @@ function loadLocalStorage() {
     const cfgTtd = document.getElementById('cfg-tempat-ttd');
     const titleKbihu = document.getElementById('login-title-kbihu');
 
-    if(cfgUrl) cfgUrl.value = DB.Setting.script_url || 'https://script.google.com/macros/s/AKfycby4jn-8gqWEC6oMNX9L0qXzCkgXOOhB7wKNjMekuO6GWoRQuueYj6lqSsm6oDDObECs/exec';
+    if(cfgUrl) cfgUrl.value = DB.Setting.script_url || '';
     if(cfgNama) cfgNama.value = DB.Setting.nama_kbihu || 'KBIHU KI MAGETI';
     if(cfgThn) cfgThn.value = DB.Setting.tahun || '1448 H / 2027 M';
     if(cfgAlamat) cfgAlamat.value = DB.Setting.alamat || '';
