@@ -53,10 +53,10 @@ function setLoginRole(role) {
     if (role === 'jamaah') {
         btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
         btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
-        lblUser.innerText = 'NIK ATAU NO. WHATSAPP';
-        lblPass.innerText = 'PASSWORD (MASUKKAN NIK)';
-        inpUser.placeholder = 'Contoh: 3520123456780001';
-        inpPass.placeholder = 'Masukkan NIK Anda';
+        lblUser.innerText = 'NO. PORSI / NO. WA / NIK';
+        lblPass.innerText = 'PASSWORD (NO. PORSI / NO. WA / NIK)';
+        inpUser.placeholder = 'Masukkan No. Porsi / WA / NIK';
+        inpPass.placeholder = 'Masukkan No. Porsi / WA / NIK';
     } else {
         btnAdmin.className = 'flex-1 py-2 rounded-lg transition text-emerald-800 bg-white shadow-sm font-bold';
         btnJamaah.className = 'flex-1 py-2 rounded-lg transition text-slate-600';
@@ -90,7 +90,6 @@ function hitungsUsiaOtomatis() {
     inputUsia.value = age > 0 ? `${age} Tahun` : '0 Tahun';
 }
 
-// MEMBUKA MODAL EDIT / TAMBAH JAMAAH (SISTEM PRE-FILL LENGKAP)
 function openModalJamaah(nik = null) {
     const form = document.getElementById('form-jamaah');
     form.reset();
@@ -102,7 +101,7 @@ function openModalJamaah(nik = null) {
         if (j) {
             document.getElementById('modal-jamaah-title').innerText = 'Edit Data Jamaah';
             document.getElementById('j-edit-original-nik').value = j.nik || '';
-            document.getElementById('j-nik').value = j.nik || '';
+            document.getElementById('j-nik').value = (j.nik && !j.nik.startsWith('TEMP-')) ? j.nik : '';
             document.getElementById('j-porsi').value = j.no_porsi || '';
             document.getElementById('j-nama').value = j.nama || '';
             document.getElementById('j-nama-ayah').value = j.nama_ayah || '';
@@ -127,7 +126,7 @@ function openModalJamaah(nik = null) {
     openModal('modal-jamaah');
 }
 
-// FITUR UNDUH TEMPLATE EXCEL UNTUK IMPORT JAMAAH
+// UNDUH TEMPLATE EXCEL IMPORT JAMAAH
 function downloadExcelTemplate() {
     const templateData = [
         {
@@ -153,6 +152,96 @@ function downloadExcelTemplate() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template_Jamaah");
     XLSX.writeFile(wb, "Template_Import_Jamaah_KBIHU.xlsx");
+}
+
+// PROSES UPLOAD & IMPORT EXCEL JAMAAH
+function importJamaahExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    Swal.fire({ title: 'Membaca File Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const reader = new FileReader();
+    reader.onload = async function(evt) {
+        try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Mengubah sheet ke JSON dengan opsi raw: false agar angka/teks dikonversi dengan baik
+            const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '-' });
+
+            if (!rows || rows.length === 0) {
+                Swal.fire('Gagal Import', 'File Excel kosong atau format tidak sesuai.', 'error');
+                return;
+            }
+
+            let countSuccess = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+
+                // Menemukan properti secara fleksibel meskipun huruf besar/kecil di Excel
+                const findVal = (keys) => {
+                    for (let k of keys) {
+                        const foundKey = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+                            return String(row[foundKey]).trim();
+                        }
+                    }
+                    return '';
+                };
+
+                const nama = findVal(['nama', 'nama_jamaah', 'nama jamaah']);
+                let nik = findVal(['nik']);
+                let noPorsi = findVal(['no_porsi', 'noporsi', 'no porsi']);
+
+                if (nama || nik || noPorsi) {
+                    // Jika NIK kosong dari Excel, buat ID unik sementara
+                    if (!nik || nik === '-') {
+                        nik = 'TEMP-' + Date.now() + '-' + i;
+                    }
+
+                    const payload = {
+                        nik: nik,
+                        no_porsi: noPorsi || '-',
+                        nama: nama || 'Jamaah Baru',
+                        nama_ayah: findVal(['nama_ayah', 'nama ayah', 'ayah']) || '-',
+                        jk: (findVal(['jk', 'l/p', 'jenis_kelamin']).toUpperCase().includes('P')) ? 'P' : 'L',
+                        tempat_lahir: findVal(['tempat_lahir', 'tempat lahir']) || '-',
+                        tgl_lahir: findVal(['tgl_lahir', 'tgl lahir', 'ttl']) || '',
+                        usia: findVal(['usia']) || '-',
+                        alamat: findVal(['alamat']) || '-',
+                        desa: findVal(['desa', 'kelurahan']) || '-',
+                        kecamatan: findVal(['kecamatan', 'kec']) || '-',
+                        wa: findVal(['wa', 'no_hp', 'hp', 'whatsapp']) || '-',
+                        hp_keluarga: findVal(['hp_keluarga', 'no_hp_keluarga']) || '-',
+                        riwayat_sakit: findVal(['riwayat_sakit', 'sakit']) || '-',
+                        pengalaman_haji: findVal(['pengalaman_haji', 'pengalaman']) || 'Belum Pernah',
+                        created_at: new Date().toISOString()
+                    };
+
+                    const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
+                    if (idx >= 0) DB.Jamaah[idx] = payload;
+                    else DB.Jamaah.push(payload);
+
+                    await apiCall('SAVE_JAMAAH', payload);
+                    countSuccess++;
+                }
+            }
+
+            saveLocalStorage();
+            renderJamaah();
+            e.target.value = ''; // Reset input file
+            Swal.fire('Import Berhasil', `${countSuccess} data jamaah berhasil diimport & tersimpan!`, 'success');
+
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Gagal Import', 'Terjadi kesalahan saat memproses file Excel.', 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 async function fetchPublicJadwal() {
@@ -458,6 +547,7 @@ function renderJamaah() {
 
     DB.Jamaah.forEach(j => {
         const nik = j.nik || '-';
+        const displayNik = (nik.startsWith('TEMP-')) ? 'Belum Ada NIK' : nik;
         const noPorsi = j.no_porsi || '-';
         const nama = j.nama || '-';
         const namaAyah = j.nama_ayah || '-';
@@ -478,7 +568,7 @@ function renderJamaah() {
             <td class="p-3 sm:p-4 font-mono text-emerald-700 font-bold">${noPorsi}</td>
             <td class="p-3 sm:p-4 font-bold text-slate-800">
                 ${nama}<br>
-                <span class="text-[10px] text-slate-400 font-normal">NIK: ${nik}</span>
+                <span class="text-[10px] text-slate-400 font-normal">NIK: ${displayNik}</span>
             </td>
             <td class="p-3 sm:p-4 text-slate-700">${namaAyah}</td>
             <td class="p-3 sm:p-4"><span class="px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold ${jk==='L'?'bg-blue-100 text-blue-700':'bg-pink-100 text-pink-700'}">${jk}</span></td>
@@ -524,12 +614,14 @@ function renderBerkas() {
             ktp: false, kk: false, spph: false, paspor: false, vaksin: false
         };
 
+        const displayNik = (j.nik && !j.nik.startsWith('TEMP-')) ? j.nik : 'Belum ada NIK';
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 border-b border-slate-100';
         tr.innerHTML = `
             <td class="p-3 sm:p-4 font-semibold text-slate-800">
                 ${j.nama}<br>
-                <span class="text-xs text-slate-400 font-normal">NIK: ${j.nik} | Porsi: ${j.no_porsi || '-'}</span>
+                <span class="text-xs text-slate-400 font-normal">NIK: ${displayNik} | Porsi: ${j.no_porsi || '-'}</span>
             </td>
             ${renderBerkasStatus(j.nik, 'ktp', b.ktp)}
             ${renderBerkasStatus(j.nik, 'kk', b.kk)}
@@ -663,9 +755,15 @@ function renderJadwal() {
 async function submitJamaah(e) {
     e.preventDefault();
     const originalNik = document.getElementById('j-edit-original-nik').value;
-    
+    let inputNik = document.getElementById('j-nik').value.trim();
+
+    // Jika NIK tidak diisi, generate ID unik otomatis
+    if (!inputNik) {
+        inputNik = originalNik || ('TEMP-' + Date.now());
+    }
+
     const payload = {
-        nik: document.getElementById('j-nik').value,
+        nik: inputNik,
         no_porsi: document.getElementById('j-porsi').value || '-',
         nama: document.getElementById('j-nama').value,
         nama_ayah: document.getElementById('j-nama-ayah').value || '-',
@@ -673,17 +771,16 @@ async function submitJamaah(e) {
         tempat_lahir: document.getElementById('j-tempat-lahir').value || '-',
         tgl_lahir: document.getElementById('j-tgl-lahir').value || '',
         usia: document.getElementById('j-usia').value || '-',
-        alamat: document.getElementById('j-alamat').value,
+        alamat: document.getElementById('j-alamat').value || '-',
         desa: document.getElementById('j-desa').value || '-',
         kecamatan: document.getElementById('j-kecamatan').value || '-',
-        wa: document.getElementById('j-wa').value,
+        wa: document.getElementById('j-wa').value || '-',
         hp_keluarga: document.getElementById('j-hp-keluarga').value || '-',
         riwayat_sakit: document.getElementById('j-riwayat-sakit').value || '-',
         pengalaman_haji: document.getElementById('j-pengalaman-haji').value || 'Belum Pernah',
         created_at: new Date().toISOString()
     };
 
-    // Jika NIK diedit, bersihkan data lama dari memori lokal
     if (originalNik && originalNik !== payload.nik) {
         DB.Jamaah = DB.Jamaah.filter(x => x.nik !== originalNik);
     }
@@ -832,53 +929,6 @@ function exportJamaahExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Data Jamaah");
     XLSX.writeFile(wb, "Data_Jamaah_KBIHU.xlsx");
-}
-
-function importJamaahExcel(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const sheetName = workbook.SheetNames[0];
-        const importedData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-        if (importedData.length > 0) {
-            importedData.forEach(row => {
-                if (row.nik && row.nama) {
-                    const payload = {
-                        nik: String(row.nik),
-                        no_porsi: String(row.no_porsi || '-'),
-                        nama: String(row.nama),
-                        nama_ayah: String(row.nama_ayah || '-'),
-                        jk: row.jk || 'L',
-                        tempat_lahir: row.tempat_lahir || '-',
-                        tgl_lahir: row.tgl_lahir || '',
-                        usia: row.usia || '-',
-                        alamat: row.alamat || '-',
-                        desa: row.desa || '-',
-                        kecamatan: row.kecamatan || '-',
-                        wa: String(row.wa || ''),
-                        hp_keluarga: String(row.hp_keluarga || '-'),
-                        riwayat_sakit: row.riwayat_sakit || '-',
-                        pengalaman_haji: row.pengalaman_haji || 'Belum Pernah',
-                        created_at: new Date().toISOString()
-                    };
-                    const idx = DB.Jamaah.findIndex(x => x.nik === payload.nik);
-                    if (idx >= 0) DB.Jamaah[idx] = payload;
-                    else DB.Jamaah.push(payload);
-
-                    apiCall('SAVE_JAMAAH', payload);
-                }
-            });
-            saveLocalStorage();
-            renderJamaah();
-            Swal.fire('Import Berhasil', `${importedData.length} data diproses.`, 'success');
-        }
-    };
-    reader.readAsArrayBuffer(file);
 }
 
 function generateStempelCanvas(textMain, textSub) {
