@@ -67,6 +67,132 @@ function setLoginRole(role) {
     }
 }
 
+// FUNGSI CEK BERKAS YANG BELUM LENGKAP
+function getBerkasKurangList(nik) {
+    const b = DB.Berkas.find(item => String(item.nik) === String(nik));
+    if (!b) return ['KTP', 'KK', 'SPPH', 'Paspor', 'Vaksin'];
+
+    const kurang = [];
+    if (b.ktp !== true && b.ktp !== 'true') kurang.push('KTP');
+    if (b.kk !== true && b.kk !== 'true') kurang.push('KK');
+    if (b.spph !== true && b.spph !== 'true') kurang.push('SPPH');
+    if (b.paspor !== true && b.paspor !== 'true') kurang.push('Paspor');
+    if (b.vaksin !== true && b.vaksin !== 'true') kurang.push('Vaksin');
+
+    return kurang;
+}
+
+// 1. FITUR PENCARIAN PUBLIK (Halaman Login Depan)
+function searchJamaahPublic() {
+    const query = document.getElementById('public-search-input').value.trim().toLowerCase();
+    const resultsContainer = document.getElementById('public-search-results');
+
+    if (query.length < 2) {
+        resultsContainer.classList.add('hidden');
+        resultsContainer.innerHTML = '';
+        return;
+    }
+
+    const matched = DB.Jamaah.filter(j => {
+        const nama = (j.nama || '').toLowerCase();
+        const porsi = (j.no_porsi || '').toLowerCase();
+        const wa = (j.wa || '').toLowerCase();
+        const nik = (j.nik || '').toLowerCase();
+        return nama.includes(query) || porsi.includes(query) || wa.includes(query) || nik.includes(query);
+    });
+
+    resultsContainer.classList.remove('hidden');
+    resultsContainer.innerHTML = '';
+
+    if (matched.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2">Data jamaah tidak ditemukan.</div>';
+        return;
+    }
+
+    matched.slice(0, 5).forEach(j => {
+        const berkasKurang = getBerkasKurangList(j.nik);
+        const berkasHtml = berkasKurang.length > 0 
+            ? `<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-300">Kurang: ${berkasKurang.join(', ')}</span>`
+            : `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">✓ Berkas Lengkap</span>`;
+
+        const div = document.createElement('div');
+        div.className = 'bg-white text-slate-800 p-3 rounded-xl shadow-sm text-xs space-y-1';
+        div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <h4 class="font-extrabold text-emerald-800 text-sm">${j.nama}</h4>
+                    <p class="text-[10px] text-slate-500">Porsi: <span class="font-mono font-bold text-slate-700">${j.no_porsi || '-'}</span> | NIK: ${j.nik && !j.nik.startsWith('TEMP-') ? j.nik : '-'}</p>
+                </div>
+                ${berkasHtml}
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-[11px] text-slate-600 border-t border-slate-100">
+                <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
+                <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
+                <div><b>No. HP Jamaah:</b> 📱 ${j.wa || '-'}</div>
+                <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
+            </div>
+        `;
+        resultsContainer.appendChild(div);
+    });
+}
+
+// 2. FITUR PENCARIAN ADMIN DASHBOARD
+function searchJamaahAdminDash() {
+    const query = document.getElementById('admin-dash-search').value.trim().toLowerCase();
+    const resultsContainer = document.getElementById('admin-dash-search-results');
+
+    if (query.length < 2) {
+        resultsContainer.classList.add('hidden');
+        resultsContainer.innerHTML = '';
+        return;
+    }
+
+    const matched = DB.Jamaah.filter(j => {
+        const nama = (j.nama || '').toLowerCase();
+        const porsi = (j.no_porsi || '').toLowerCase();
+        const wa = (j.wa || '').toLowerCase();
+        const nik = (j.nik || '').toLowerCase();
+        return nama.includes(query) || porsi.includes(query) || wa.includes(query) || nik.includes(query);
+    });
+
+    resultsContainer.classList.remove('hidden');
+    resultsContainer.innerHTML = '';
+
+    if (matched.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-center text-xs text-slate-400 py-3">Tidak ditemukan jamaah dengan kata kunci tersebut.</div>';
+        return;
+    }
+
+    matched.slice(0, 5).forEach(j => {
+        const berkasKurang = getBerkasKurangList(j.nik);
+        const berkasBadge = berkasKurang.length > 0 
+            ? `<span class="bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded text-[10px] border border-rose-200">Berkas Kurang: ${berkasKurang.join(', ')}</span>`
+            : `<span class="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-200">✓ Berkas Lengkap</span>`;
+
+        const div = document.createElement('div');
+        div.className = 'bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1 text-xs';
+        div.innerHTML = `
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <div>
+                    <span class="font-mono font-bold text-emerald-700">Porsi: ${j.no_porsi || '-'}</span>
+                    <h4 class="font-bold text-slate-800 text-sm leading-tight">${j.nama}</h4>
+                </div>
+                ${berkasBadge}
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 text-slate-600 border-t border-slate-200/60">
+                <div><b>Nama Ayah:</b> ${j.nama_ayah || '-'}</div>
+                <div><b>Alamat:</b> ${j.alamat || '-'} (Ds. ${j.desa || '-'}, Kec. ${j.kecamatan || '-'})</div>
+                <div><b>No. HP Jamaah:</b> <a href="https://wa.me/${j.wa}" target="_blank" class="text-emerald-600 font-medium">📱 ${j.wa || '-'}</a></div>
+                <div><b>No. HP Keluarga:</b> 📞 ${j.hp_keluarga || '-'}</div>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button type="button" onclick="openModalJamaah('${j.nik}')" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg font-semibold hover:bg-blue-700">Edit Data Jamaah Ini</button>
+            </div>
+        `;
+        resultsContainer.appendChild(div);
+    });
+}
+
 // Hitung Otomatis Usia saat tanggal lahir diisi
 function hitungsUsiaOtomatis() {
     const tglLahirInput = document.getElementById('j-tgl-lahir').value;
@@ -169,7 +295,6 @@ function importJamaahExcel(e) {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // Mengubah sheet ke JSON dengan opsi raw: false agar angka/teks dikonversi dengan baik
             const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '-' });
 
             if (!rows || rows.length === 0) {
@@ -182,7 +307,6 @@ function importJamaahExcel(e) {
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
 
-                // Menemukan properti secara fleksibel meskipun huruf besar/kecil di Excel
                 const findVal = (keys) => {
                     for (let k of keys) {
                         const foundKey = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
@@ -198,7 +322,6 @@ function importJamaahExcel(e) {
                 let noPorsi = findVal(['no_porsi', 'noporsi', 'no porsi']);
 
                 if (nama || nik || noPorsi) {
-                    // Jika NIK kosong dari Excel, buat ID unik sementara
                     if (!nik || nik === '-') {
                         nik = 'TEMP-' + Date.now() + '-' + i;
                     }
@@ -233,7 +356,7 @@ function importJamaahExcel(e) {
 
             saveLocalStorage();
             renderJamaah();
-            e.target.value = ''; // Reset input file
+            e.target.value = '';
             Swal.fire('Import Berhasil', `${countSuccess} data jamaah berhasil diimport & tersimpan!`, 'success');
 
         } catch (err) {
@@ -757,7 +880,6 @@ async function submitJamaah(e) {
     const originalNik = document.getElementById('j-edit-original-nik').value;
     let inputNik = document.getElementById('j-nik').value.trim();
 
-    // Jika NIK tidak diisi, generate ID unik otomatis
     if (!inputNik) {
         inputNik = originalNik || ('TEMP-' + Date.now());
     }
