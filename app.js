@@ -119,7 +119,7 @@ function getBerkasKurangFromObj(berkasObj) {
     return kurang;
 }
 
-// 1. FITUR PENCARIAN PUBLIK REAL-TIME
+// 1. FITUR PENCARIAN PUBLIK REAL-TIME (HALAMAN DEPAN)
 let publicSearchTimer = null;
 function searchJamaahPublic() {
     clearTimeout(publicSearchTimer);
@@ -169,15 +169,15 @@ function searchJamaahPublic() {
         } else {
             resultsContainer.innerHTML = '<div class="text-center text-xs text-emerald-100 py-2">Data jamaah tidak ditemukan.</div>';
         }
-    }, 400);
+    }, 300);
 }
 
-// 2. FITUR PENCARIAN ADMIN DASHBOARD
+// 2. FITUR PENCARIAN ADMIN DASHBOARD UTAMA
 function searchJamaahAdminDash() {
     const query = document.getElementById('admin-dash-search').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('admin-dash-search-results');
 
-    if (query.length < 2) {
+    if (query.length < 1) {
         resultsContainer.classList.add('hidden');
         resultsContainer.innerHTML = '';
         return;
@@ -230,17 +230,17 @@ function searchJamaahAdminDash() {
     });
 }
 
-// 3. FITUR PENCARIAN & FILTER DI MENU TAB JAMAAH (ADMIN)
+// 3. FITUR FILTER/PENCARIAN LANGSUNG PADA TABEL JAMAAH (TAB DATA JAMAAH)
 function filterJamaahTable() {
     const input = document.getElementById('tab-jamaah-search-input');
-    const filter = input ? input.value.trim().toLowerCase() : '';
-    renderJamaah(filter);
+    const filterKeyword = input ? input.value.trim().toLowerCase() : '';
+    renderJamaah(filterKeyword);
 }
 
 function clearFilterJamaah() {
     const input = document.getElementById('tab-jamaah-search-input');
     if (input) input.value = '';
-    renderJamaah();
+    renderJamaah('');
 }
 
 function hitungsUsiaOtomatis() {
@@ -402,7 +402,7 @@ function importJamaahExcel(e) {
             }
 
             saveLocalStorage();
-            renderJamaah();
+            filterJamaahTable();
             e.target.value = '';
             Swal.fire('Import Berhasil', `${countSuccess} data jamaah berhasil diimport & tersimpan!`, 'success');
 
@@ -652,7 +652,7 @@ function switchTab(tabId, btn) {
 
 function renderAll() {
     renderDashboard();
-    renderJamaah();
+    filterJamaahTable(); // Memanggil rendering jamaah dengan mempertahankan filter kata kunci yang aktif
     renderBerkas();
     renderPembayaran();
     renderJadwal();
@@ -707,7 +707,7 @@ function renderDashboard() {
     });
 }
 
-// RENDER TABEL JAMAAH DENGAN DUKUNGAN FILTER PENCARIAN CEPAT
+// RENDER TABEL JAMAAH SECARA REALTIME DENGAN FILTER
 function renderJamaah(filterKeyword = '') {
     const tbody = document.getElementById('table-jamaah-body');
     tbody.innerHTML = '';
@@ -725,12 +725,14 @@ function renderJamaah(filterKeyword = '') {
             const porsi = (j.no_porsi || '').toLowerCase();
             const wa = (j.wa || '').toLowerCase();
             const nik = (j.nik || '').toLowerCase();
-            return nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q);
+            const desa = (j.desa || '').toLowerCase();
+            const kec = (j.kecamatan || '').toLowerCase();
+            return nama.includes(q) || porsi.includes(q) || wa.includes(q) || nik.includes(q) || desa.includes(q) || kec.includes(q);
         });
     }
 
     if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-rose-500 font-semibold">Jamaah tidak ditemukan dengan kata kunci tersebut.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-rose-500 font-semibold">Data jamaah tidak ditemukan dengan kata kunci tersebut.</td></tr>';
         return;
     }
 
@@ -978,7 +980,7 @@ async function submitJamaah(e) {
     else DB.Jamaah.push(payload);
 
     saveLocalStorage();
-    renderJamaah();
+    filterJamaahTable();
     closeModal('modal-jamaah');
 
     Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -997,7 +999,7 @@ async function deleteJamaah(nik) {
         if (result.isConfirmed) {
             DB.Jamaah = DB.Jamaah.filter(x => x.nik !== nik);
             saveLocalStorage();
-            renderJamaah();
+            filterJamaahTable();
             await apiCall('DELETE_JAMAAH', { nik });
             Swal.fire('Terhapus', 'Data jamaah berhasil dihapus.', 'success');
         }
